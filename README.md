@@ -48,7 +48,7 @@ Ligase makes that test a one-flag operation and treats the result as the product
 
 | **Task Milestone StatusEvidence (commit/PR)Notes** |       |   |   |                               |
 | ------------------------------------------------ | ----- | - | - | ----------------------------- |
-| Skeleton + README + uv +CI                      | M0    | ☐ | — | this commit                   |
+| Skeleton + README + uv + CI                      | M0    | ☐ | — | this commit                   |
 | Hydra config skeleton (M1-relevant groups)       | M0/M1 | ☐ | — | Section 8                     |
 | `embed/esm.py` extractor                         | M1    | ☐ | — |                               |
 | Embedding cache (h5, hash-addressed)             | M1    | ☐ | — |                               |
