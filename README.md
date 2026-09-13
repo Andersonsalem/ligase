@@ -129,9 +129,74 @@ The maintainer does not want to train models. Honor that:
 
 ## 7. Repository layout — what each piece is and why
 
+ 
+Legend: **plain** = exists now. `(M#)` = not yet scaffolded; arrives with that milestone.
+ 
 ```
-ligase/├── README.md                  ← this document; the contract + status dashboard├── LICENSE                    ← MIT├── pyproject.toml             ← single source for deps, tools, CLI entry point├── uv.lock                    ← committed; exact reproducible env├── Makefile                   ← thin aliases over uv commands (make test/lint/format)├── .gitignore                 ← includes data/, *.h5, outputs/, .dssp/├── .pre-commit-config.yaml    ← ruff lint+format, ruff-check hook; mypy on changed files├── .github/workflows/ci.yml   ← uv setup → sync → ruff → mypy → pytest (no GPU)│├── configs/                   ← HYDRA. Objective: every run reproducible from configs alone.│   ├── config.yaml            ← root defaults list; see Section 8│   ├── features/              ← seq.yaml | struct.yaml | both.yaml   (THE flag)│   ├── embed/                 ← one yaml per embedding model (esm2_t33_650M.yaml, …)│   ├── graph/                 ← graph construction params (knn k, radius, RBF centers)│   ├── model/                 ← mlp.yaml | gvp.yaml | gearnet.yaml│   ├── task/                  ← secondary_structure.yaml | binding_site.yaml | none.yaml│   └── profile/               ← cpu.yaml (default) | gpu.yaml│├── src/ligase/│   ├── __init__.py            ← version only. HARD RULE: imports nothing heavy (Section 11)│   ├── cli.py                 ← @hydra.main entry points: `embed`, `build`, `train`, `eval`│   ││   ├── embed/                 ← OBJECTIVE: sequence → per-residue embeddings, once, cached forever.│   │   └── esm.py│   ││   ├── graph/                 ← OBJECTIVE: structure → one opinionated PyG residue graph.│   │   ├── io.py              ←   loading (paths or PDB/AFDB IDs), download+cache│   │   └── build.py           ←   node/edge features; THE invariance guarantee lives here│   ││   ├── fuse/                  ← OBJECTIVE: the graft. pLM embeddings onto graph nodes.│   │   └── __init__.py        ←   dimension handling, frozen-vs-tuned switch, projections│   ││   ├── encoders/              ← OBJECTIVE: three encoders, three files, one idea each.│   │   ├── mlp.py             ←   pooled-embedding baseline. Never delete: it's the conscience.│   │   ├── gvp.py             ←   GVP-GNN in invariant mode│   │   └── gearnet.py         ←   relational GNN, RBF edge features, edge-type embeddings│   ││   ├── tasks/                 ← OBJECTIVE: labels in, metrics out, per-residue heads.│   │   └── secondary_structure.py│   ││   └── utils/│       ├── seeding.py         ← seed_everything; determinism policy (only real code at M0)│       ├── caching.py         ← hash-addressed cache helpers (M1)│       └── logging.py         ← tiny CSV/JSON metric logger (M3) — no accounts, ever│├── tests/│   ├── conftest.py            ← fixtures: tiny toy structure, 5 fake sequences, tmp caches│   ├── test_smoke.py          ← import policy, version, determinism — green at M0│   └── test_invariance.py     ← M2 acceptance math (Section 10); skipped until M2│├── examples/                  ← notebooks land M3+: 01_embed_and_cache, 02_build_graphs,│                              ← 03_secondary_structure_ablation├── docs/                      ← mkdocs; API reference generated from docstrings (M4)└── data/                      ← gitignored. Download + cache root. Never commit data.
+ligase/
+├── README.md                  ← this document; the contract + status dashboard
+├── LICENSE                    ← MIT
+├── pyproject.toml             ← single source for deps, tools, CLI entry point
+├── uv.lock                    ← (M0) committed once `uv sync` is first run; exact reproducible env
+├── Makefile                   ← thin aliases over uv commands (make test/lint/format)
+├── .gitignore                 ← includes data/, *.h5, outputs/, .dssp/
+├── .pre-commit-config.yaml    ← (M0) ruff lint+format, ruff-check hook; mypy on changed files
+├── .github/
+│   └── workflows/ci.yml       ← uv setup → sync → ruff → mypy → pytest (no GPU)
+│
+├── configs/                   ← (M1) HYDRA. Objective: every run reproducible from configs alone.
+│   ├── config.yaml            ←   root defaults list; see Section 8
+│   ├── features/               ←   seq.yaml | struct.yaml | both.yaml   (THE flag)
+│   ├── embed/                  ←   one yaml per embedding model (esm2_t33_650M.yaml, …)
+│   ├── graph/                  ←   graph construction params (knn k, radius, RBF centers)
+│   ├── model/                  ←   mlp.yaml | gvp.yaml | gearnet.yaml
+│   ├── task/                   ←   secondary_structure.yaml | binding_site.yaml | none.yaml
+│   └── profile/                ←   cpu.yaml (default) | gpu.yaml
+│
+├── src/ligase/
+│   ├── __init__.py             ← version only. HARD RULE: imports nothing heavy (Section 11)
+│   ├── cli.py                  ← (M1) @hydra.main entry points: `embed`, `build`, `train`, `eval`
+│   │
+│   ├── embed/                  ← OBJECTIVE: sequence → per-residue embeddings, once, cached forever.
+│   │   ├── __init__.py
+│   │   └── esm.py              ← (M1)
+│   │
+│   ├── graph/                  ← OBJECTIVE: structure → one opinionated PyG residue graph.
+│   │   ├── __init__.py
+│   │   ├── io.py               ← (M2) loading (paths or PDB/AFDB IDs), download+cache
+│   │   └── build.py            ← (M2) node/edge features; THE invariance guarantee lives here
+│   │
+│   ├── fuse/                   ← OBJECTIVE: the graft. pLM embeddings onto graph nodes.
+│   │   └── __init__.py         ← (M4) dimension handling, frozen-vs-tuned switch, projections
+│   │
+│   ├── encoders/                ← OBJECTIVE: three encoders, three files, one idea each.
+│   │   ├── __init__.py
+│   │   ├── mlp.py               ← (M3) pooled-embedding baseline. Never delete: it's the conscience.
+│   │   ├── gvp.py               ← (M3) GVP-GNN in invariant mode
+│   │   └── gearnet.py           ← (M3) relational GNN, RBF edge features, edge-type embeddings
+│   │
+│   ├── tasks/                   ← OBJECTIVE: labels in, metrics out, per-residue heads.
+│   │   ├── __init__.py
+│   │   └── secondary_structure.py  ← (M3)
+│   │
+│   └── utils/
+│       ├── __init__.py
+│       ├── seeding.py           ← seed_everything; determinism policy — the only real code today, and it sets the tone
+│       ├── caching.py           ← (M1) hash-addressed cache helpers
+│       └── logging.py           ← (M3) tiny CSV/JSON metric logger — no accounts, ever
+│
+├── tests/
+│   ├── conftest.py              ← fixtures: tiny toy structure, 5 fake sequences, tmp caches
+│   ├── test_smoke.py            ← import policy, version, determinism — green at M0
+│   └── test_invariance.py       ← M2 acceptance math (Section 10); skipped, but the math is written down
+│
+├── examples/                    ← notebooks land M3+: 01_embed_and_cache, 02_build_graphs,
+│                                 ← 03_secondary_structure_ablation
+├── docs/                        ← (M4) mkdocs; API reference generated from docstrings
+└── data/                        ← gitignored. Download + cache root. Never commit data.
 ```
+ 
+**Where things stand right now (pre-M0 complete):** the package skeleton, empty module files, and `utils/seeding.py` exist; `configs/`, `uv.lock`, `.pre-commit-config.yaml`, `cli.py`, and `docs/` do not yet. Closing that gap — plus a green CI run — is exactly what M0 is (Section 2). Every `(M#)` tag above should flip to plain text, and its checkbox in the Task ledger should flip to [V], in the same commit.
 
 ### 7.1 Module contracts (implement exactly these; signatures are the API)
 
