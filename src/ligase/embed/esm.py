@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 import numpy as np
 
@@ -38,9 +39,11 @@ class ESM2Source:
         self.layer = layer
         self.device = device
         self._dim: int | None = None
-        self._tok = None
-        self._model = None
-        self._cfg = None
+        self._tok: Any | None = None
+        self._model: Any | None = None
+        self._cfg: Any | None = None
+        self._resolved_device: Any | None = None
+        self._torch: Any | None = None
 
     # EmbeddingSource: id
     @property
