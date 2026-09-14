@@ -7,16 +7,30 @@ jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.10", "3.11", "3.12"]
     steps:
       - uses: actions/checkout@v4
+
       - uses: astral-sh/setup-uv@v5
         with:
-          python-version: ${{ matrix.python-version }}
           enable-cache: true
-      - run: uv sync --all-extras
-      - run: uv run ruff check .
-      - run: uv run ruff format --check .
-      - run: uv run mypy src
-      - run: uv run pytest -m "not gpu" --cov=ligase --cov-report=term
+
+      - name: Install Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Sync dependencies
+        run: uv sync --all-extras --python ${{ matrix.python-version }}
+
+      - name: Run Ruff Check
+        run: uv run ruff check .
+
+      - name: Run Ruff Format
+        run: uv run ruff format --check .
+
+      - name: Run mypy
+        run: uv run mypy --python-version ${{ matrix.python-version }} src
+
+      - name: Run pytest
+        run: uv run pytest -m "not gpu" --cov=ligase --cov-report=term
