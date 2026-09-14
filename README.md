@@ -39,7 +39,7 @@ Ligase makes that test a one-flag operation and treats the result as the product
 
 | # | Milestone | Deliverable | Done when | Status |
 |---|---|---|---|---|
-| M0 | Skeleton | Repo layout, uv env, CI, this README | CI green from first commit; `uv run pytest` passes locally | ☐ |
+| M0 | Skeleton | Repo layout, uv env, CI, this README | CI green from first commit; `uv run pytest` passes locally | ☑ |
 | M1 | `embed` | ESM-2 extraction → disk cache + protocol extraction | round-trip + zero-recompute + determinism + conformance tests pass | ☐ |
 | M2 | `graph` | Structures → PyG residue graphs | rotation-invariance & permutation-equivariance tests pass (unskipped) | ☐ |
 | M3 | `encoders` + task | MLP / GVP / GearNet-lite + secondary structure | trains end-to-end on a small CPU-able config; Q3 > seq-only baseline reported | ☐ |
@@ -50,7 +50,7 @@ Ligase makes that test a one-flag operation and treats the result as the product
 
 | Task | Milestone | Status | Evidence (commit/PR) | Notes |
 |---|---|---|---|---|
-| Skeleton + README + uv + CI | M0 | ☐ | — | this commit |
+| Skeleton + README + uv + CI | M0 | ☑ | a29d036  | this commit |
 | Hydra config skeleton (M1-relevant groups) | M0/M1 | ☐ | — | Section 8 |
 | `embed/esm.py` extractor (implements `EmbeddingSource`) | M1 | ☐ | — | Section 5.1, 7.1 |
 | `embed/protocol.py` — protocol extracted from working code | M1 | ☐ | — | rule of two: extract, don't invent |
@@ -180,6 +180,16 @@ The boundary:
 
 **The rule of two:** the public extensibility surface — plugin docs section and the `ligase conformance` CLI — ships only when a second concrete implementation exists (Ankh counts; likely M4). The protocol itself is extracted in M1 from the working ESM-2 code, because an interface designed before its second implementation is almost always wrong.
 
+### 5.2 The encoder contract (bring your own GNN)
+
+Symmetric with 5.1: the encoder consuming our graphs is pluggable. Input schema is pinned by `build_graph` (Section 7.1): `data.x`, `data.edge_index`, `data.edge_attr` (RBF + sequence offset),`data.pos`  (Cα coordinates — may be ignored by graph-free encoders like the MLP, never assumed absent).
+
+Instantiation via Hydra `_target_` in `configs/model/*.yaml` — zero library changes, same as 5.1
+Encoder conformance (Section 10): permutation equivariance, batching equivalence, and rotationinvariance of outputs for encoders that consume coordinates
+Rule of two: satisfied at birth by the built-in trio; protocol still extracted from workingcode in M3, plugin docs ship in M4 with the conformance CLI
+Full-harness composition: user's PLM (5.1) + user's encoder (5.2) on our graphs, splits, metrics
+**Task admission rule.** A task joins the suite when it (1) has public, license-clear labels,(2) trains a ≤1M-param head on CPU in minutes, and (3) probes a facet of representation qualityexisting tasks don't. Growth axis: local geometry → functional sites → global fitness(see Changelog for the candidate table).
+
 ## 6. Tech stack (chosen deliberately — this repo doubles as a job portfolio)
 
 | Concern | Tool | Why it's here |
@@ -248,6 +258,7 @@ ligase/
 │   │
 │   ├── encoders/                ← OBJECTIVE: three encoders, three files, one idea each.
 │   │   ├── __init__.py
+│   │   ├── protocol.py             ← (M3) GraphEncoder contract, extracted from the working trio
 │   │   ├── mlp.py               ← (M3) pooled-embedding baseline. Never delete: it's the conscience.
 │   │   ├── gvp.py               ← (M3) GVP-GNN in invariant mode
 │   │   └── gearnet.py           ← (M3) relational GNN, RBF edge features, edge-type embeddings
@@ -433,6 +444,7 @@ These acceptance tests are written **now**, in `tests/test_invariance.py`, skipp
 4. **Cache round-trip** — `embed_sequences` twice yields identical arrays; the second call performs zero model forward passes.
 5. **Determinism** — same seed ⇒ bitwise-identical metrics on the CPU profile.
 6. **Conformance (parametrized)** — any `EmbeddingSource` passes `tests/test_conformance.py`: alignment (`L == len(seq)`, including X/B/U/Z and length-1), determinism (bitwise), and cache round-trip with zero recompute. Built-in sources run it in CI (against a mock/tiny fixture — never 650M weights); third-party sources run the same file; `ligase conformance` (M4, rule of two) exposes it as a CLI.
+7. **Encoder conformance (parametrized)** — built-in and third-party encoders pass the sameinvariance suite: permutation equivariance, batching equivalence; rotation invariance whenthe encoder consumes coordinates.
 
 The test suite is the library's argument. An interviewer who reads these tests understands the design without reading a line of model code.
 
@@ -486,12 +498,15 @@ If any of those four lines fails for a newcomer, that is a P0 bug. This block is
 | ProteinWorkshop | Heavyweight benchmark framework | We ship one readable path, not a framework |
 | BioPython | Parsing swiss-army knife | gemmi covers our structural needs with less surface |
 | MTEB | Benchmark harness for text embeddings | The playbook: the harness, not the models, is the moat |
+| TAPE / PEER | Protein benchmark suites | Precedent and comparison point; we optimize for readability + the ablation flag they lack |
 
 ## 16. Changelog ← APPEND A ROW FOR EVERY COMPLETED TASK
 
 | Date | Task (from ledger) | What changed | Decisions made / open questions settled | Commit |
 |---|---|---|---|---|
-| (today) | README patch: model-agnostic core | Sections 0/2/3/4/5(+5.1)/7/8/9/10/11/15/17 updated; ledger +4 tasks; conformance suite + mock fixture added to tree | Harness framing adopted; rule of two becomes Hard Rule 8; Q7/Q8 opened; Hydra defaults-list syntax fixed (`- _seed: 42` → plain `seed: 42`) | — |
+| September 13 2026 | README patch: model-agnostic core | Sections 0/2/3/4/5(+5.1)/7/8/9/10/11/15/17 updated; ledger +4 tasks; conformance suite + mock fixture added to tree | Harness framing adopted; rule of two becomes Hard Rule 8; Q7/Q8 opened; Hydra defaults-list syntax fixed (`- _seed: 42` → plain `seed: 42`) | — |
+| September 13 2026 | Skeleton + README + uv + CI | — | created the main skeleton | (see task ledger) |
+| September 13 2026 | README patch: encoder contract + task admission rule | Sections 5.2/7/10/15/17; tree +1 file | GraphEncoder protocol adopted; task growth axis recorded (Q9, Q10) | |
 | — | — | — | — | — |
 
 ## 17. Open questions ledger
@@ -506,6 +521,7 @@ If any of those four lines fails for a newcomer, that is a P0 bug. This block is
 | Q6 | pandas vs polars for benchmark tables | pandas (boring wins) | M4 |
 | Q7 | When does the public plugin API ship (plugin docs + `ligase conformance` CLI)? | With the second implementation (Ankh) — likely M4 | M4 |
 | Q8 | Second protocol `StructureSource` for external structure feature extractors? | On demand only; rule of two applies | — |
+| Q9 | Encoder plugin docs timing | protocol extracted M3 (trio satisfies rule of two); docs + CLI in M4 | M3 || Q10 | Task-suite growth order after SS | binding sites (v1.5) → ProteinGym DMS (v2) | v1.5 |
 
 ---
 
