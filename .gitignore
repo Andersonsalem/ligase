@@ -1,0 +1,21 @@
+# environments / tooling
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+
+# ligase data policy (Section 9): caches and outputs never enter git
+data/
+outputs/
+*.h5
+.dssp/
+
+# editors / OS
+.DS_Store
+.idea/
+.vscode/

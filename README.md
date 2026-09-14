@@ -128,6 +128,7 @@ Ligase's machinery — splits, graphs, tasks, metrics, honest baselines — is u
 from typing import Protocol
 import numpy as np
 
+
 class EmbeddingSource(Protocol):
     """Anything that turns sequences into per-residue embeddings."""
 
@@ -282,6 +283,8 @@ ligase/
 
 ```python
 class EmbeddingSource(Protocol): ...
+
+
 # The FULL contract text — including the alignment clause — lives in Section 5.1.
 # Extraction rule: write esm.py first, then lift the interface out of the working
 # code. This file should be ~50 lines and import nothing heavier than numpy.
@@ -327,9 +330,11 @@ def cached(source: EmbeddingSource, cache_dir: Path = ...) -> EmbeddingSource
 # CI conformance runs against the MOCK source (and optionally, gpu-marked, the
 # smallest real ESM-2) — CI must NEVER download 650M-parameter weights.
 
-def test_alignment(source): ...        # L == len(seq); X/B/U/Z; length-1; specials stripped
-def test_determinism(source): ...      # bitwise-identical on repeat
+
+def test_alignment(source): ...  # L == len(seq); X/B/U/Z; length-1; specials stripped
+def test_determinism(source): ...  # bitwise-identical on repeat
 def test_cache_roundtrip(source): ...  # identical arrays; second call = zero forwards
+
 
 # Third-party sources run this same file against their implementation — that is
 # what makes a green conformance checkmark mean something.

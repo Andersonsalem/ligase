@@ -1,12 +1,15 @@
 import subprocess
 import sys
-import pytest
-import ligase
 
+import pytest
+
+import ligase
 from ligase.utils.seeding import seed_everything
+
 
 def test_version():
     assert ligase.__version__ == "0.0.1"
+
 
 def test_seeding_is_deterministic():
     torch = pytest.importorskip("torch")
@@ -15,6 +18,7 @@ def test_seeding_is_deterministic():
     seed_everything(7)
     b = torch.rand(8)
     assert torch.equal(a, b)
+
 
 def test_import_policy_torch_not_pulled_by_root_import():
     code = "import ligase, sys; assert 'torch' not in sys.modules, 'Hard Rule 1 violated'"
