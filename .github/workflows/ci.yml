@@ -4,6 +4,20 @@ on:
   pull_request:
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Install dependencies
+        run: uv sync --all-extras --python 3.11
+      - name: Run Ruff Check
+        run: uv run --python 3.11 ruff check .
+      - name: Run Ruff Format
+        run: uv run --python 3.11 ruff format --check .
+
   test:
     runs-on: ubuntu-latest
     strategy:
@@ -12,25 +26,18 @@ jobs:
         python-version: ["3.10", "3.11", "3.12"]
     steps:
       - uses: actions/checkout@v4
-
       - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
 
-      - name: Install Python ${{ matrix.python-version }}
+      - name: Set up Python ${{ matrix.python-version }}
         run: uv python install ${{ matrix.python-version }}
 
       - name: Sync dependencies
         run: uv sync --all-extras --python ${{ matrix.python-version }}
 
-      - name: Run Ruff Check
-        run: uv run ruff check .
-
-      - name: Run Ruff Format
-        run: uv run ruff format --check .
-
       - name: Run mypy
-        run: uv run mypy --python-version ${{ matrix.python-version }} src
+        run: uv run --python ${{ matrix.python-version }} mypy --python-version ${{ matrix.python-version }} src
 
       - name: Run pytest
-        run: uv run pytest -m "not gpu" --cov=ligase --cov-report=term
+        run: uv run --python ${{ matrix.python-version }} pytest -m "not gpu" --cov=ligase --cov-report=term
