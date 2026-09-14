@@ -229,19 +229,20 @@ ligase/
 ├── .github/
 │   └── workflows/ci.yml       ← uv setup → sync → ruff → mypy → pytest (no GPU)
 │
-├── configs/                   ← (M1) HYDRA. Objective: every run reproducible from configs alone.
-│   ├── config.yaml            ←   root defaults list; see Section 8
-│   ├── features/               ←   seq.yaml | struct.yaml | both.yaml   (THE flag)
-│   ├── embed/                  ←   one yaml per embedding SOURCE — each instantiates an
-│   │                            ←   EmbeddingSource via _target_ (esm2_t33_650M.yaml, my_plm.yaml, …)
-│   ├── graph/                  ←   graph construction params (knn k, radius, RBF centers)
-│   ├── model/                  ←   mlp.yaml | gvp.yaml | gearnet.yaml
-│   ├── task/                   ←   secondary_structure.yaml | binding_site.yaml | none.yaml
-│   └── profile/                ←   cpu.yaml (default) | gpu.yaml
 │
 ├── src/ligase/
 │   ├── __init__.py             ← version only. HARD RULE: imports nothing heavy (Section 11)
 │   ├── cli.py                  ← (M1) @hydra.main entry points: `embed`, `build`, `train`, `eval`
+│   │
+│   ├── configs/                   ← (M1) HYDRA. Objective: every run reproducible from configs alone.
+│   │   ├── config.yaml            ←   root defaults list; see Section 8
+│   │   ├── features/               ←   seq.yaml | struct.yaml | both.yaml   (THE flag)
+│   │   ├── embed/                  ←   one yaml per embedding SOURCE — each instantiates an
+│   │   │                            ←   EmbeddingSource via _target_ (esm2_t33_650M.yaml, my_plm.yaml, …)
+│   │   ├── graph/                  ←   graph construction params (knn k, radius, RBF centers)
+│   │   ├── model/                  ←   mlp.yaml | gvp.yaml | gearnet.yaml
+│   │   ├── task/                   ←   secondary_structure.yaml | binding_site.yaml | none.yaml
+│   │   └── profile/                ←   cpu.yaml (default) | gpu.yaml
 │   │
 │   ├── embed/                  ← OBJECTIVE: sequence → per-residue embeddings, once, cached forever.
 │   │   ├── __init__.py         ←   exports EmbeddingSource + cached()
@@ -275,7 +276,7 @@ ligase/
 │
 ├── tests/
 │   ├── conftest.py              ← fixtures: tiny toy structure, 5 fake sequences, tmp caches,
-│   │                             ←   a MOCK EmbeddingSource (tiny dim) for CI conformance runs
+│   ├── test_esm.py              ← a real EmbeddingSource (tiny dim) for CI conformance runs
 │   ├── test_smoke.py            ← import policy, version, determinism — green at M0
 │   ├── test_conformance.py      ← (M1) parametrized suite any EmbeddingSource must pass
 │   └── test_invariance.py       ← M2 acceptance math (Section 10); skipped, but the math is written down

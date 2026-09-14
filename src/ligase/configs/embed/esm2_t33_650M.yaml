@@ -1,0 +1,6 @@
+# Configs are OBJECTS, not names (README 5.1). Hydra instantiates this via _target_.
+# To benchmark your own model: copy this file, point _target_ at your class.
+_target_: ligase.embed.esm.ESM2Source
+model_name: facebook/esm2_t33_650M_UR50D
+layer: null       # null -> last hidden state
+device: null      # null -> auto (cuda if available, else cpu)

@@ -1,0 +1,12 @@
+defaults:
+  - profile: cpu
+  - embed: esm2_t33_650M
+  - _self_
+
+seed: 42
+cache_dir: data/cache
+sequences: [] #override 'sequences=[seq1, seq2, ...]'
+
+hydra:
+  run:
+    dir: outputs/embed/${now:%Y-%m-%d_%H-%M-%S}

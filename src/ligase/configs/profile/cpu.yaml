@@ -1,0 +1,2 @@
+# (dtype/batch/split sizes). Device is auto-detected; pin via embed.device=cuda:0.
+name: cpu
