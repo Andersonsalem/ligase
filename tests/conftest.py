@@ -58,3 +58,66 @@ def seqs_edge_cases() -> list[str]:
         "acde",
         "MKTAYIAKQRQISFVKSHFSRQ",
     ]
+
+
+def _helix_coords(n: int = 8) -> np.ndarray:
+    """Ideal Cα helix: 2.3 Å radius, 100°/residue, 1.5 Å rise. Consecutive
+    Cα–Cα ≈ 3.8 Å — physically honest test geometry."""
+    t = np.arange(n) * np.deg2rad(100.0)
+    return np.stack([2.3 * np.cos(t), 2.3 * np.sin(t), 1.5 * np.arange(n)], axis=1)
+
+
+AA3 = {
+    "A": "ALA",
+    "C": "CYS",
+    "D": "ASP",
+    "E": "GLU",
+    "F": "PHE",
+    "G": "GLY",
+    "H": "HIS",
+    "I": "ILE",
+    "K": "LYS",
+    "L": "LEU",
+    "M": "MET",
+    "N": "ASN",
+    "P": "PRO",
+    "Q": "GLN",
+    "R": "ARG",
+    "S": "SER",
+    "T": "THR",
+    "V": "VAL",
+    "W": "TRP",
+    "Y": "TYR",
+    "X": "GLY",
+}
+
+
+def _helix_pdb(coords: np.ndarray, codes: str, b_factors: np.ndarray) -> str:
+    lines = [
+        f"ATOM  {i + 1:5d}  CA  {AA3[c]} A{i + 1:4d}    "
+        f"{x:8.3f}{y:8.3f}{z:8.3f}  1.00{b:6.2f}           C"
+        for i, ((x, y, z), c, b) in enumerate(zip(coords, codes, b_factors, strict=True))
+    ]
+    return "\n".join(lines) + "\nEND\n"
+
+
+@pytest.fixture
+def toy_pdb_path(tmp_path, toy_coords, toy_codes, toy_plddt):
+    p = tmp_path / "toy.pdb"
+    p.write_text(_helix_pdb(toy_coords, toy_codes, toy_plddt))
+    return p
+
+
+@pytest.fixture
+def toy_coords() -> np.ndarray:
+    return _helix_coords()
+
+
+@pytest.fixture
+def toy_codes() -> str:
+    return "ACDEFGHI"
+
+
+@pytest.fixture
+def toy_plddt() -> np.ndarray:
+    return np.full(8, 88.0)

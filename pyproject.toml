@@ -64,6 +64,7 @@ markers = [
     "gpu: needs CUDA; deselect with -m 'not gpu'",
     "slow: downloads real model weights; deselect with -m 'not slow'",
 ]
+filterwarnings = ["ignore:`torch.jit.script` is deprecated:FutureWarning"]
 
 [tool.mypy]
 python_version = "3.10"

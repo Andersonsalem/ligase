@@ -1,0 +1,7 @@
+name: default
+edge_knn: 10        # k nearest Cα neighbors per node
+edge_radius: 10.0   # Å connect all pairs closer than this
+rbf_min: 0.0        # Å RBF grid start
+rbf_max: 20.0       # Å RBF grid end
+rbf_count: 20       # Gaussian centers on the grid
+rbf_sigma: 2.5      # Å Gaussian width

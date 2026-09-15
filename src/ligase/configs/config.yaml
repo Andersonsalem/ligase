@@ -1,12 +1,15 @@
 defaults:
   - profile: cpu
   - embed: esm2_t33_650M
+  - graph: default
   - _self_
 
 seed: 42
 cache_dir: data/cache
 sequences: [] #override 'sequences=[seq1, seq2, ...]'
+sequences_file: null   # .fasta/.fa/.faa | .txt (one per line, '#' comments) | .csv ('sequence' column)
+structure: null # path | PDB ID (1UBQ) | AF_{UNIPROT}F1 | bare UniProt accession
 
 hydra:
   run:
-    dir: outputs/embed/${now:%Y-%m-%d_%H-%M-%S}
+    dir: outputs/${hydra.job.name}/${now:%Y-%m-%d_%H-%M-%S}  #job name can be embed_app or build_app
