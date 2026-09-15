@@ -82,21 +82,37 @@ def build_app(cfg: DictConfig) -> None:
     import torch
     from omegaconf import OmegaConf
 
-    from ligase.graph.build import GraphParams, build_graph
+    from ligase.graph.build import GraphParams, build_graph, cache_key
     from ligase.graph.io import load_structure, safe_name
 
     if not cfg.structure:
         raise SystemExit("no structure given — try: structure=1UBQ or structure=AF_P69905F1")
     fields = GraphParams.__dataclass_fields__
     raw = OmegaConf.to_container(cfg.graph) or {}
+    unknown = sorted(set(raw) - set(fields) - {"name"})
+    if unknown:
+        raise SystemExit(
+            f"unknown graph options: {', '.join(unknown)} — "
+            "typo'd configs must fail loudly, not silently build the default"
+        )
     params = GraphParams(**{k: v for k, v in raw.items() if k in fields})
-    structure = load_structure(str(cfg.structure), Path(cfg.cache_dir) / "structures")
-    data = build_graph(structure, params)
+    structure_id = str(cfg.structure)
 
     out_dir = Path(cfg.cache_dir) / "graphs"
     out_dir.mkdir(parents=True, exist_ok=True)
-    out = out_dir / f"{safe_name(str(cfg.structure))}.pt"
-    torch.save({"data": data, "params": params, "structure_id": str(cfg.structure)}, out)
-    print(f"{cfg.structure}: {data.num_nodes} residues, {data.edge_index.shape[1]} directed edges")
+    out = out_dir / f"{safe_name(structure_id)}-{cache_key(structure_id, params)}.pt"
+
+    if out.exists():
+        # weights_only=False: we wrote this file; it holds a PyG Data, not raw tensors
+        saved = torch.load(out, weights_only=False)
+        data = saved["data"]
+        note = f"cache hit: {out}"
+    else:
+        structure = load_structure(structure_id, Path(cfg.cache_dir) / "structures")
+        data = build_graph(structure, params)
+        torch.save({"data": data, "params": params, "structure_id": structure_id}, out)
+        note = f"saved: {out}"
+
+    print(f"{structure_id}: {data.num_nodes} residues, {data.edge_index.shape[1]} directed edges")
     print(f"seq[:60]: {data.seq[:60]}")
-    print(f"saved: {out}")
+    print(note)

@@ -1,8 +1,10 @@
+from dataclasses import replace
+
 import numpy as np
 import pytest
 import torch
 
-from ligase.graph.build import GraphParams, build_graph, build_graph_from_coords
+from ligase.graph.build import GraphParams, build_graph, build_graph_from_coords, cache_key
 from ligase.graph.io import load_structure, resolve_url
 
 
@@ -47,3 +49,17 @@ def test_real_download_ubiquitin(tmp_path):
     data = build_graph(load_structure("1UBQ", tmp_path))
     assert data.num_nodes == 76
     assert float(data.x.min()) >= 0.0 and float(data.x.max()) <= 1.0
+
+
+def test_cache_key_changes_with_params() -> None:
+    assert cache_key("1UBQ", GraphParams()) != cache_key(
+        "1UBQ", replace(GraphParams(), edge_knn=15)
+    )
+
+
+def test_cache_key_changes_with_structure() -> None:
+    assert cache_key("1UBQ", GraphParams()) != cache_key("AF_P69905F1", GraphParams())
+
+
+def test_cache_key_is_deterministic() -> None:
+    assert cache_key("1UBQ", GraphParams()) == cache_key("1UBQ", GraphParams())

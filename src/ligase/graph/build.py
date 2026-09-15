@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 
 import gemmi
 import numpy as np
@@ -157,3 +158,9 @@ def _extract(
 
     is_af = _is_alphafold(structure)
     return np.array(coords), "".join(codes), np.array(plddts), is_af
+
+
+def cache_key(structure_id: str, params: GraphParams = DEFAULT_PARAMS) -> str:
+    field = ",".join(f"{f.name}={getattr(params, f.name)!r}" for f in fields(params))
+    payload = f"graph|{structure_id}|{field}"
+    return hashlib.sha256(payload.encode()).hexdigest()[:12]
