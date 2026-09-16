@@ -6,6 +6,8 @@ from pathlib import Path
 import hydra
 from omegaconf import DictConfig
 
+from ligase.graph.build import GraphParams
+
 CONFIG_PKG = "pkg://ligase.configs"
 
 
@@ -32,11 +34,12 @@ def help_app() -> None:
     print(
         "ligase <command> [hydra overrides]\n"
         "  embed                  extract per-residue embeddings into the cache\n"
-        "  build | train | eval   (Milestones 2 / 3 / 4 - see README Section 2)\n\n"
+        "  build                  structures -> PyG graphs (single, list, or manifest file)\n"
+        "  train | eval           (Milestones 3 / 4 - see README Section 2)\n\n"
         "example:\n"
         "  uv run ligase embed 'sequences=[ACDEFGHIKLMNPQRSTVWY, MKTAYIAKQRQISFVKSHFSRQ]'\n"
-        "  uv run ligase embed embed.model_name=facebook/esm2_t6_8M_UR50D \\\n"
-        "      'sequences=[ACDEFGHIKLMNPQRSTVWY]'   # 8M model: quick smoke\n"
+        "  uv run ligase build structure=1UBQ\n"
+        "  uv run ligase build structures_file=ids.txt   # one PDB/AFDB id per line\n"
     )
 
 
@@ -59,6 +62,47 @@ def _resolve_sequences(cfg: DictConfig) -> list[str]:
     return list(cfg.sequences)
 
 
+def _resolve_structure_ids(cfg: DictConfig) -> list[str]:
+    """Exactly one of structure / structures / structures_file; ambiguity exits."""
+    from ligase.graph.io import load_structure_ids
+
+    given = [
+        name
+        for name, has in (
+            ("structure", bool(cfg.structure)),
+            ("structures", bool(list(cfg.structures))),
+            ("structures_file", cfg.get("structures_file") is not None),
+        )
+        if has
+    ]
+    if len(given) != 1:
+        raise SystemExit(
+            "set exactly one of 'structure', 'structures', or 'structures_file' — "
+            f"got {', '.join(given) if given else 'none'}"
+        )
+    if given[0] == "structures_file":
+        return load_structure_ids(str(cfg.structures_file))
+    if given[0] == "structures":
+        return [str(s) for s in cfg.structures]
+    return [str(cfg.structure)]
+
+
+def _graph_params(cfg: DictConfig) -> GraphParams:
+    from omegaconf import OmegaConf
+
+    from ligase.graph.build import GraphParams
+
+    fields = GraphParams.__dataclass_fields__
+    raw = OmegaConf.to_container(cfg.graph) or {}
+    unknown = sorted(set(raw) - set(fields) - {"name"})
+    if unknown:
+        raise SystemExit(
+            f"unknown graph options: {', '.join(unknown)} — "
+            "typo'd configs must fail loudly, not silently build the default"
+        )
+    return GraphParams(**{k: v for k, v in raw.items() if k in fields})
+
+
 @hydra.main(config_path=CONFIG_PKG, config_name="config", version_base=None)
 def embed_app(cfg: DictConfig) -> None:
     from hydra.utils import instantiate
@@ -79,40 +123,20 @@ def embed_app(cfg: DictConfig) -> None:
 
 @hydra.main(config_path=CONFIG_PKG, config_name="config", version_base=None)
 def build_app(cfg: DictConfig) -> None:
-    import torch
-    from omegaconf import OmegaConf
+    from ligase.graph.cache import get_or_build_graph
 
-    from ligase.graph.build import GraphParams, build_graph, cache_key
-    from ligase.graph.io import load_structure, safe_name
+    ids = _resolve_structure_ids(cfg)
+    if not ids:
+        raise SystemExit("no structures given — try: structure=1UBQ or structures_file=ids.txt")
+    params = _graph_params(cfg)
 
-    if not cfg.structure:
-        raise SystemExit("no structure given — try: structure=1UBQ or structure=AF_P69905F1")
-    fields = GraphParams.__dataclass_fields__
-    raw = OmegaConf.to_container(cfg.graph) or {}
-    unknown = sorted(set(raw) - set(fields) - {"name"})
-    if unknown:
-        raise SystemExit(
-            f"unknown graph options: {', '.join(unknown)} — "
-            "typo'd configs must fail loudly, not silently build the default"
+    hits = 0
+    for i, structure_id in enumerate(ids, start=1):
+        data, hit = get_or_build_graph(structure_id, params, Path(cfg.cache_dir))
+        hits += int(hit)
+        state = "cache hit" if hit else "built"
+        print(
+            f"[{i}/{len(ids)}] {structure_id}: {data.num_nodes} residues, "
+            f"{data.edge_index.shape[1]} directed edges ({state})"
         )
-    params = GraphParams(**{k: v for k, v in raw.items() if k in fields})
-    structure_id = str(cfg.structure)
-
-    out_dir = Path(cfg.cache_dir) / "graphs"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    out = out_dir / f"{safe_name(structure_id)}-{cache_key(structure_id, params)}.pt"
-
-    if out.exists():
-        # weights_only=False: we wrote this file; it holds a PyG Data, not raw tensors
-        saved = torch.load(out, weights_only=False)
-        data = saved["data"]
-        note = f"cache hit: {out}"
-    else:
-        structure = load_structure(structure_id, Path(cfg.cache_dir) / "structures")
-        data = build_graph(structure, params)
-        torch.save({"data": data, "params": params, "structure_id": structure_id}, out)
-        note = f"saved: {out}"
-
-    print(f"{structure_id}: {data.num_nodes} residues, {data.edge_index.shape[1]} directed edges")
-    print(f"seq[:60]: {data.seq[:60]}")
-    print(note)
+    print(f"{len(ids) - hits} built, {hits} cached -> {Path(cfg.cache_dir) / 'graphs'}")

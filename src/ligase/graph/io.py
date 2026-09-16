@@ -13,10 +13,10 @@ UNIPROT_ACC = re.compile(
     r"^[OPQ][0-9][A-Z0-9]{3}[0-9]$|^[A-NR-Z][0-9]([A-Z][A-Z0-9]{2}[0-9]){1,2}$"
 )
 AFDB_MODEL = re.compile(r"^AF_([A-Z0-9]+)F\d+$", re.IGNORECASE)
-AFDB_VERSION = "v4"  # bump with change log
+
 
 PDB_URL = "https://files.rcsb.org/download/{id}.cif"
-AFDB_URL = "https://alphafold.ebi.ac.uk/files/AF_{acc}-F1-model_{ver}.cif"
+AFDB_API_URL = "https://alphafold.ebi.ac.uk/api/prediction/{acc}"
 
 PLDDT_SOURCE_KEY = "_ligase_plddt_source"
 
@@ -37,7 +37,22 @@ def _af_accession(identifier: str) -> str | None:
 def resolve_url(identifier: str) -> str:
     acc = _af_accession(identifier)
     if acc:
-        return AFDB_URL.format(acc=acc, ver=AFDB_VERSION)
+        import json
+        import urllib.request
+
+        req = urllib.request.Request(
+            AFDB_API_URL.format(acc=acc),
+            headers={"User-Agent": "ligase/1.0"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                if not data:
+                    raise ValueError(f"No AlphaFold prediction returned for {acc}")
+                return data[0]["cifUrl"]
+        except Exception as e:
+            raise RuntimeError(f"Failed to fetch AlphaFold URL for {acc}: {e}") from e
+
     if PDB_ID.match(identifier):
         return PDB_URL.format(id=identifier.upper())
     raise ValueError(
@@ -90,3 +105,34 @@ def _download(url: str, dest: Path) -> None:
     except Exception:
         tmp.unlink(missing_ok=True)
         raise
+
+
+def load_structure_ids(path: str | Path) -> list[str]:
+    """
+    Read a manifest of structure identifiers.
+
+    ```.txt```: one identifier per line, # comments are ignored
+    ```.csv```: must have a "structure" column (case-insensitive)
+    Duplicates are dropped and order is preserved.
+    """
+    path = Path(path)
+    if not path.exists():
+        raise FileExistsError(f"File not found: {path}")
+    suffix = path.suffix.lower()
+    if suffix == ".txt":
+        lines = (line.strip() for line in path.read_text().splitlines())
+        ids = [ln for ln in lines if ln and not ln.startswith("#")]
+    elif suffix == ".csv":
+        import csv
+
+        with path.open(newline="") as f:
+            reader = csv.DictReader(f)
+            if reader.fieldnames is None:
+                raise ValueError(f"{path}: empty CSV - expected a 'structure' column")
+            header = {name.strip().lower(): name for name in reader.fieldnames}
+            if "structure" not in header:
+                raise ValueError(f"{path}: CSV must have a 'structure' column")
+            ids = [(row[header["structure"]] or "").strip() for row in reader]
+    else:
+        raise ValueError(f"Unsupported file type: {path}")
+    return list(dict.fromkeys(i for i in ids if i))

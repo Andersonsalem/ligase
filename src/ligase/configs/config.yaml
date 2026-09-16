@@ -6,9 +6,11 @@ defaults:
 
 seed: 42
 cache_dir: data/cache
-sequences: [] #override 'sequences=[seq1, seq2, ...]'
+sequences: []
 sequences_file: null   # .fasta/.fa/.faa | .txt (one per line, '#' comments) | .csv ('sequence' column)
 structure: null # path | PDB ID (1UBQ) | AF_{UNIPROT}F1 | bare UniProt accession
+structures: [] #override 'structures=[id1, id2, ...]'
+structures_file: null #txt or csv of ids
 
 hydra:
   run:

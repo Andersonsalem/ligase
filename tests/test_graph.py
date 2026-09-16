@@ -1,11 +1,13 @@
 from dataclasses import replace
+from pathlib import Path
 
 import numpy as np
 import pytest
 import torch
 
 from ligase.graph.build import GraphParams, build_graph, build_graph_from_coords, cache_key
-from ligase.graph.io import load_structure, resolve_url
+from ligase.graph.cache import get_or_build_graph
+from ligase.graph.io import load_structure, load_structure_ids, resolve_url
 
 
 def test_resolve_url_pdb():
@@ -13,8 +15,8 @@ def test_resolve_url_pdb():
 
 
 def test_resolve_url_afdb():
-    assert "AF_P69905" in resolve_url("AF_P69905F1")
-    assert "AF_P69905" in resolve_url("P69905")  # bare accession
+    assert "AF-P69905" in resolve_url("AF_P69905F1")
+    assert "AF-P69905" in resolve_url("P69905")  # bare accession
 
 
 def test_resolve_url_rejects_garbage():
@@ -63,3 +65,50 @@ def test_cache_key_changes_with_structure() -> None:
 
 def test_cache_key_is_deterministic() -> None:
     assert cache_key("1UBQ", GraphParams()) == cache_key("1UBQ", GraphParams())
+
+
+def test_load_ids_txt(tmp_path: Path) -> None:
+    f = tmp_path / "ids.txt"
+    f.write_text("# comment\n\n1UBQ\n  AF_P69905F1  \n1UBQ\n")
+    assert load_structure_ids(f) == ["1UBQ", "AF_P69905F1"]  # dedupe, order kept
+
+
+def test_load_ids_csv(tmp_path: Path) -> None:
+    f = tmp_path / "ids.csv"
+    f.write_text("Structure,note\n1UBQ,ubiquitin\nAF_P69905F1,actin model\n")
+    assert load_structure_ids(f) == ["1UBQ", "AF_P69905F1"]
+
+
+def test_load_ids_csv_missing_column(tmp_path: Path) -> None:
+    f = tmp_path / "ids.csv"
+    f.write_text("pdb_id\n1UBQ\n")
+    with pytest.raises(ValueError, match="structure"):
+        load_structure_ids(f)
+
+
+def test_load_ids_unknown_ext(tmp_path: Path) -> None:
+    f = tmp_path / "ids.json"
+    f.write_text("[]")
+    with pytest.raises(ValueError, match="Unsupported"):
+        load_structure_ids(f)
+
+
+def test_graph_cache_roundtrip(tmp_path: Path, toy_pdb_path: Path) -> None:
+    params = GraphParams()
+    data1, hit1 = get_or_build_graph(str(toy_pdb_path), params, tmp_path)
+    data2, hit2 = get_or_build_graph(str(toy_pdb_path), params, tmp_path)
+    assert not hit1 and hit2
+    assert torch.equal(data1.x, data2.x)
+    assert torch.equal(data1.edge_index, data2.edge_index)
+    assert torch.equal(data1.edge_attr, data2.edge_attr)
+    assert data1.seq == data2.seq
+
+
+def test_graph_cache_distinguishes_params(tmp_path: Path, toy_pdb_path: Path) -> None:
+    a = GraphParams()
+    b = replace(GraphParams(), edge_knn=15)
+    _, hit_a = get_or_build_graph(str(toy_pdb_path), a, tmp_path)
+    _, hit_b = get_or_build_graph(str(toy_pdb_path), b, tmp_path)
+    assert not hit_a and not hit_b  # different keys -> both built
+    _, again = get_or_build_graph(str(toy_pdb_path), a, tmp_path)
+    assert again  # original entry untouched by the second build
