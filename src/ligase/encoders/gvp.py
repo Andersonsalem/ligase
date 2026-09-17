@@ -4,8 +4,8 @@ import torch
 from torch import Tensor, nn
 from torch_geometric.data import Data
 from torch_geometric.nn import MessagePassing
-from torch_geometric.utils import scatter
 
+from ligase.encoders.protocol import mean_pool
 from ligase.graph.build import AA
 
 
@@ -154,7 +154,4 @@ class GVPEncoder(nn.Module):
 
     def pool(self, out: Tensor, batch: Data) -> Tensor:
         """Mean-pooling over node features (num_graphs, out_dim)"""
-        index = getattr(batch, "batch", None)
-        if index is None:
-            return out.mean(dim=0, keepdim=True)
-        return scatter(out, index, dim=0, reduce="mean")
+        return mean_pool(out, batch)

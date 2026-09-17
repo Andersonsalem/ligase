@@ -6,6 +6,7 @@ from torch_geometric.data import Data
 from torch_geometric.utils import scatter
 
 from ligase.encoders.gvp import GVPFeedForward
+from ligase.encoders.protocol import mean_pool
 from ligase.graph.build import AA
 
 SEQ_EDGE, SPATIAL_EDGE = 1, 0
@@ -111,7 +112,4 @@ class GearNetEncoder(nn.Module):
 
     def pool(self, out: Tensor, batch: Data) -> Tensor:
         """Mean-pool per-node features: (num_graphs, out_dim)"""
-        index = getattr(batch, "batch", None)
-        if index is None:
-            return out.mean(dim=0, keepdim=True)
-        return scatter(out, index, dim=0, reduce="mean")
+        return mean_pool(out, batch)

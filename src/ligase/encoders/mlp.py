@@ -3,7 +3,8 @@ from __future__ import annotations
 import torch
 from torch import Tensor, nn
 from torch_geometric.data import Data
-from torch_geometric.utils import scatter
+
+from ligase.encoders.protocol import mean_pool
 
 
 class MLPEncoder(nn.Module):
@@ -68,14 +69,11 @@ class MLPEncoder(nn.Module):
         """
         x = batch.x
         if x.dtype not in (torch.float32, torch.float64):
-            raise TypeError(f"Expected float32 input, got {x.dtype}")
+            raise TypeError(f"Expected fp32 input, got {x.dtype}")
         return self.net(x)
 
     def pool(self, out: Tensor, batch: Data) -> Tensor:
         """
         Mean-Pool per-node features into graph features.
         """
-        index = getattr(batch, "batch", None)
-        if index is None:
-            return out.mean(dim=0, keepdim=True)
-        return scatter(out, index, dim=0, reduce="mean")
+        return mean_pool(out, batch)

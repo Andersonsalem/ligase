@@ -118,39 +118,47 @@ def _is_alphafold(structure: gemmi.Structure) -> bool:
         return False
 
 
+def select_chain(structure: gemmi.Structure, chain_id: str | None = None) -> gemmi.Chain:
+    model = structure[0]
+    if chain_id is not None:
+        return model[chain_id]
+    chains = [ch for ch in model if len(ch)]
+    if not chains:
+        raise ValueError("Structure has no residues")
+    if len(chains) > 1:
+        logger.info(
+            "%d chains found --- using '%s' (pass chain= to override)",
+            len(chains),
+            chains[0].name,
+        )
+    return chains[0]
+
+
+def is_protein_ca(res: gemmi.Residue) -> bool:
+    info = gemmi.find_tabulated_residue(res.name)
+    return info is not None and info.is_amino_acid() and res.find_atom("CA", "*") is not None
+
+
 def _extract(
     structure: gemmi.Structure, chain_id: str | None = None
 ) -> tuple[np.ndarray, str, np.ndarray, bool]:
-    model = structure[0]
-    if chain_id is not None:
-        chains = [model[chain_id]]
-    else:
-        chains = [ch for ch in model if len(ch)]
-        if not chains:
-            raise ValueError("Structure has no residues")
-        if len(chains) > 1:
-            logger.info(
-                "%d chains found — using '%s' (pass chain= to override)",
-                len(chains),
-                chains[0].name,
-            )
+    chain = select_chain(structure, chain_id)
 
     coords: list[tuple[float, float, float]] = []
     codes: list[str] = []
     plddts: list[float] = []
-    for ch in chains:
-        for res in ch:
-            info = gemmi.find_tabulated_residue(res.name)
-            if info is None or not info.is_amino_acid():
-                continue
-            ca = res.find_atom("CA", "*")
-            if ca is None:
-                logger.debug("no CA in %s%s — skipped", ch.name, res.seqid.num)
-                continue
-            code = info.one_letter_code.upper()
-            coords.append((ca.pos.x, ca.pos.y, ca.pos.z))
-            codes.append(code if code in AA else "X")
-            plddts.append(ca.b_iso)
+    for res in chain:
+        if not is_protein_ca(res):
+            logger.debug("%s%s skipped (not amino acid / no CA)", chain.name, res.seqid.num)
+            continue
+        info = gemmi.find_tabulated_residue(res.name)
+        assert info is not None  # guaranteed by is_protein_ca
+        ca = res.find_atom("CA", "*")
+        assert ca is not None  # guaranteed by is_protein_ca
+        code = info.one_letter_code.upper()
+        coords.append((ca.pos.x, ca.pos.y, ca.pos.z))
+        codes.append(code if code in AA else "X")
+        plddts.append(ca.b_iso)
     if not codes:
         raise ValueError(
             "no residues with a C-alpha found --- make sure this is a protein structure"

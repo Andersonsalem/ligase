@@ -1,5 +1,4 @@
 import numpy as np
-import pytest
 import torch
 
 from ligase.graph.build import (
@@ -66,9 +65,3 @@ def test_radius_edges_complete(toy_coords, toy_codes, toy_plddt):
     n = len(toy_coords)
     g = build_graph_from_coords(toy_coords, toy_codes, toy_plddt, GraphParams(edge_radius=100.0))
     assert g.edge_index.shape[1] == n * (n - 1)
-
-
-@pytest.mark.skip(
-    reason="Milestone 3 encoder conformance: batching + permutation are model properties"
-)
-def test_batching_equivalence(): ...
