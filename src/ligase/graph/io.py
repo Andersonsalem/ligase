@@ -117,7 +117,7 @@ def load_structure_ids(path: str | Path) -> list[str]:
     """
     path = Path(path)
     if not path.exists():
-        raise FileExistsError(f"File not found: {path}")
+        raise FileNotFoundError(f"File not found: {path}")
     suffix = path.suffix.lower()
     if suffix == ".txt":
         lines = (line.strip() for line in path.read_text().splitlines())

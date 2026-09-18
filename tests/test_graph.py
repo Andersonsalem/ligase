@@ -112,3 +112,8 @@ def test_graph_cache_distinguishes_params(tmp_path: Path, toy_pdb_path: Path) ->
     assert not hit_a and not hit_b  # different keys -> both built
     _, again = get_or_build_graph(str(toy_pdb_path), a, tmp_path)
     assert again  # original entry untouched by the second build
+
+
+def test_load_ids_missing_file(tmp_path: Path) -> None:
+    with pytest.raises(FileNotFoundError, match="not found"):
+        load_structure_ids(tmp_path / "nope.txt")

@@ -1,0 +1,8 @@
+# Small, well-behaved single-chain structures; extend freely.
+1UBQ
+1CRN
+1PGA
+1LYZ
+# AlphaFold DB model (human ubiquitin) near-homolog of 1UBQ, kept as a
+# live demo of the homology caveat in splits.py
+AF_P69905F1
