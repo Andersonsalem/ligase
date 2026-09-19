@@ -15,8 +15,8 @@ def main() -> None:
     commands = {
         "embed": embed_app,
         "build": build_app,
-        "train": _not_yet,
-        "eval": _not_yet,
+        "train": train_app,
+        "eval": eval_app,
         "help": help_app,
     }
     if len(sys.argv) < 2:
@@ -35,8 +35,8 @@ def help_app() -> None:
         "ligase <command> [hydra overrides]\n"
         "  embed                  extract per-residue embeddings into the cache\n"
         "  build                  structures -> PyG graphs (single, list, or manifest file)\n"
-        "  train | eval           (Milestones 3 / 4 - see README Section 2)\n\n"
-        "example:\n"
+        "  train                  train a task head: features=seq|struct|both  (see README)\n"
+        "  eval                   score a finished run: run_dir=outputs/...\n\n"
         "  uv run ligase embed 'sequences=[ACDEFGHIKLMNPQRSTVWY, MKTAYIAKQRQISFVKSHFSRQ]'\n"
         "  uv run ligase build structure=1UBQ\n"
         "  uv run ligase build structures_file=ids.txt   # one PDB/AFDB id per line\n"
@@ -44,7 +44,7 @@ def help_app() -> None:
 
 
 def _not_yet() -> None:
-    raise SystemExit("not yet implemented --- see README Section 2")
+    raise SystemExit("not yet implemented --- placeholder")
 
 
 def _resolve_sequences(cfg: DictConfig) -> list[str]:
@@ -140,3 +140,25 @@ def build_app(cfg: DictConfig) -> None:
             f"{data.edge_index.shape[1]} directed edges ({state})"
         )
     print(f"{len(ids) - hits} built, {hits} cached -> {Path(cfg.cache_dir) / 'graphs'}")
+
+
+@hydra.main(config_path=CONFIG_PKG, config_name="config", version_base=None)
+def train_app(cfg: DictConfig) -> None:
+    from ligase.tasks.train import run_training
+
+    ids = _resolve_structure_ids(cfg)
+    if not ids:
+        raise SystemExit("no structures --- try: structures_file=examples/structures_examples.txt")
+    run_training(cfg, ids)
+
+
+@hydra.main(config_path=CONFIG_PKG, config_name="config", version_base=None)
+def eval_app(cfg: DictConfig) -> None:
+    from ligase.tasks.train import evaluate_saved
+
+    if not cfg.run_dir:
+        raise SystemExit("eval needs the training run's output dir --- run_dir=outputs/<...>")
+    ids = _resolve_structure_ids(cfg)
+    metrics = evaluate_saved(cfg, ids, Path(cfg.run_dir))
+    for k, v in metrics.items():
+        print(f"{k}: {v:.4f}")

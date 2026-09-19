@@ -84,5 +84,10 @@ def test_split_seed_changes_assignment() -> None:
 
 
 def test_split_rejects_bad_fractions() -> None:
-    with pytest.raises(ValueError, match="Invalid fractions"):
+    with pytest.raises(ValueError, match="invalid fractions"):
         split_ids(["a"], train_frac=0.8, val_frac=0.3)
+
+
+def test_split_small_sets_keep_every_split_nonempty() -> None:
+    assert [len(v) for v in split_ids([f"S{i}" for i in range(3)]).values()] == [1, 1, 1]
+    assert [len(v) for v in split_ids([f"S{i}" for i in range(5)]).values()] == [3, 1, 1]

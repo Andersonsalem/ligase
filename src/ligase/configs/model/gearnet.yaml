@@ -1,0 +1,6 @@
+_target_: ligase.encoders.gearnet.GearNetEncoder
+name: gearnet
+node_dim: 128
+depth: 3
+ffn_mult: 2
+dropout: 0.0

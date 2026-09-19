@@ -1,17 +1,23 @@
 defaults:
   - profile: cpu
+  - features: seq
   - embed: esm2_t33_650M
   - graph: default
+  - model: mlp
+  - task: secondary_structure
   - _self_
 
 seed: 42
 cache_dir: data/cache
+
 sequences: []
-sequences_file: null   # .fasta/.fa/.faa | .txt (one per line, '#' comments) | .csv ('sequence' column)
-structure: null # path | PDB ID (1UBQ) | AF_{UNIPROT}F1 | bare UniProt accession
-structures: [] #override 'structures=[id1, id2, ...]'
-structures_file: null #txt or csv of ids
+sequences_file: null
+structure: null
+structures: []
+structures_file: examples/structures_examples.txt
+
+run_dir: null   # eval reads weights from here
 
 hydra:
   run:
-    dir: outputs/${hydra.job.name}/${now:%Y-%m-%d_%H-%M-%S}  #job name can be embed_app or build_app
+    dir: outputs/${task.name}/${features.name}/${model.name}/${now:%Y-%m-%d_%H-%M-%S}

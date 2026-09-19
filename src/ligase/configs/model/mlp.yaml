@@ -1,0 +1,5 @@
+_target_: ligase.encoders.mlp.MLPEncoder
+name: mlp
+hidden_dim: 512
+depth: 2
+dropout: 0.0
