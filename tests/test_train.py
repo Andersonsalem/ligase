@@ -21,7 +21,7 @@ from ligase.graph.build import is_protein_ca
 from ligase.tasks import dataset as ds
 from ligase.tasks import secondary_structure as ss
 from ligase.tasks.splits import split_ids
-from ligase.tasks.train import encode_examples, run_training, train_model, x_width
+from ligase.tasks.train import build_model, encode_examples, run_training, train_model, x_width
 
 
 @pytest.fixture
@@ -141,3 +141,26 @@ def _fake_dssp(structure) -> dict:
     chain = next(ch for ch in structure[0] if len(ch))
     keys = [ss.residue_key(chain.name, r) for r in chain if is_protein_ca(r)]
     return {k: pattern[i % len(pattern)] for i, k in enumerate(keys)}
+
+
+def test_labels_solely_determine_num_classes(tmp_path: Path) -> None:
+    cfg = _cfg(tmp_path)
+    cfg.task.labels = "q8"
+    model = build_model(cfg, width=1, edge_dim=21)
+    assert model.net[-1].out_features == 8
+
+
+def test_build_model_wiring_all_gnns() -> None:
+    """Wiring passes edge_in_dim to all GNNs."""
+    from ligase.encoders.gearnet import GearNetEncoder
+    from ligase.encoders.gvp import GVPEncoder
+
+    cfg = OmegaConf.create(
+        {
+            "model": {"_target_": "ligase.encoders.gvp.GVPEncoder", "node_dim": 16, "depth": 1},
+            "task": {"labels": "q3"},
+        }
+    )
+    assert isinstance(build_model(cfg, width=1, edge_dim=21), GVPEncoder)
+    cfg.model._target_ = "ligase.encoders.gearnet.GearNetEncoder"
+    assert isinstance(build_model(cfg, width=1, edge_dim=21), GearNetEncoder)

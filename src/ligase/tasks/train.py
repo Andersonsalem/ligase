@@ -111,7 +111,7 @@ def build_model(cfg: DictConfig, width: int, edge_dim: int) -> torch.nn.Module:
     raw = OmegaConf.to_container(cfg.model, resolve=True) or {}
     raw.pop("name", None)
     target = str(raw.get("_target_", ""))
-    out_dim = cfg.task.num_classes
+    out_dim = STATES[str(cfg.task.labels)]
     if target.endswith("MLPEncoder"):
         return instantiate(raw, in_dim=width, out_dim=out_dim)
     return instantiate(raw, x_dim=width, edge_in_dim=edge_dim, out_dim=out_dim)
@@ -137,11 +137,10 @@ def run_training(cfg: DictConfig, ids: list[str], run_dir: Path | None = None) -
     seed_everything(cfg.seed)
     device = _device(cfg)
 
-    states = STATES[cfg.task.labels]
-    if cfg.task.num_classes != states:
-        raise SystemExit(
-            f"task.num_classes={cfg.task.num_classes} contradicts labels={cfg.task.labels}"
-        )
+    try:
+        states = STATES[cfg.task.labels]
+    except KeyError:
+        raise SystemExit(f"task.labels must be 'q3' or 'q8', got {cfg.task.labels!r}") from None
 
     examples, skipped = build_examples(
         ids,

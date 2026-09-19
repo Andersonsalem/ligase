@@ -15,7 +15,7 @@ from ligase.graph.build import build_graph_from_coords
 
 FACTORIES: dict[str, Callable[[], Module]] = {
     "mlp": lambda: MLPEncoder(in_dim=1, hidden_dim=16, out_dim=8),
-    "gvp": lambda: GVPEncoder(x_dim=1, node_dim=16, edge_dim=21, out_dim=8),
+    "gvp": lambda: GVPEncoder(x_dim=1, node_dim=16, edge_in_dim=21, out_dim=8),
     "gearnet": lambda: GearNetEncoder(x_dim=1, node_dim=16, edge_in_dim=21, out_dim=8),
 }
 

@@ -114,25 +114,24 @@ class GVPEncoder(nn.Module):
         self,
         x_dim: int,
         node_dim: int = 128,
-        edge_dim: int = 21,
+        edge_in_dim: int = 21,
         depth: int = 3,
         ffn_mult: int = 2,
         dropout: float = 0.0,
         out_dim: int | None = None,
     ) -> None:
         super().__init__()
-        if x_dim < 1 or node_dim < 1 or edge_dim < 1:
-            raise ValueError("x_dim, node_dim, and edge_dim must be >= 1")
+        if x_dim < 1 or node_dim < 1 or edge_in_dim < 1:
+            raise ValueError("x_dim, node_dim and edge_in_dim must be >= 1")
         if depth < 1:
             raise ValueError(f"depth must be >= 1, got {depth}")
         out_dim = node_dim if out_dim is None else out_dim
 
-        # residue identity
         self.type_emb = nn.Embedding(len(AA), node_dim)
         self.x_proj = nn.Linear(x_dim, node_dim)
         self.input_norm = nn.LayerNorm(node_dim)
 
-        self.convs = nn.ModuleList(GVPConv(node_dim, edge_dim) for _ in range(depth))
+        self.convs = nn.ModuleList(GVPConv(node_dim, edge_in_dim) for _ in range(depth))
         self.ffns = nn.ModuleList(GVPFeedForward(node_dim, ffn_mult, dropout) for _ in range(depth))
         self.dropout = nn.Dropout(dropout)
         self.readout = nn.Linear(node_dim, out_dim)
