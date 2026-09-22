@@ -21,7 +21,14 @@ from ligase.graph.build import is_protein_ca
 from ligase.tasks import dataset as ds
 from ligase.tasks import secondary_structure as ss
 from ligase.tasks.splits import split_ids
-from ligase.tasks.train import build_model, encode_examples, run_training, train_model, x_width
+from ligase.tasks.train import (
+    build_model,
+    encode_examples,
+    evaluate_saved,
+    run_training,
+    train_model,
+    x_width,
+)
 
 
 @pytest.fixture
@@ -164,3 +171,14 @@ def test_build_model_wiring_all_gnns() -> None:
     assert isinstance(build_model(cfg, width=1, edge_dim=21), GVPEncoder)
     cfg.model._target_ = "ligase.encoders.gearnet.GearNetEncoder"
     assert isinstance(build_model(cfg, width=1, edge_dim=21), GearNetEncoder)
+
+
+def test_evaluate_saved_replays_saved_split(toy_set, tmp_path: Path) -> None:
+    run_dir = tmp_path / "run"
+    cfg = _cfg(tmp_path)  # trains with train_frac 0.5, val_frac 0.25
+    metrics = run_training(cfg, [ex.structure_id for ex in toy_set], run_dir=run_dir)
+    eval_cfg = _cfg(tmp_path / "eval")
+    eval_cfg.task.train_frac = 0.34
+    eval_cfg.task.val_frac = 0.33
+    again = evaluate_saved(eval_cfg, [ex.structure_id for ex in toy_set], run_dir)
+    assert again == metrics  # same weights + same test set => bitwise-same metrics

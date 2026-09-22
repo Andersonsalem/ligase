@@ -9,6 +9,7 @@ from torch_geometric.data import Data
 
 from ligase.graph.build import GraphParams, build_graph
 from ligase.graph.io import load_structure, safe_name
+from ligase.graph.tokens import resolve_token
 
 
 def cache_key(structure_id: str, params: GraphParams) -> str:
@@ -17,7 +18,9 @@ def cache_key(structure_id: str, params: GraphParams) -> str:
 
     The cache filename must change whenever anything that defines the graph
     changes (structure identity or GraphParams) or a stale graph is served
-    silently.
+    silently. ``structure_id`` is the FULL caller-facing identity — bare id,
+    chain token (``1UBQ.A``), AFDB accession, or path — so a chain graph and
+    its whole-entry sibling never collide.
 
     Known limitation: a local structure file edited in place keeps its key
     (identity is the string passed, not the file bytes). Delete the cached
@@ -26,7 +29,7 @@ def cache_key(structure_id: str, params: GraphParams) -> str:
     Parameters
     ----------
     structure_id : str
-        Identifier as passed by the caller: PDB ID, AFDB accession, or path.
+        Identifier as passed by the caller.
     params : GraphParams
         Frozen graph-construction parameters.
 
@@ -48,10 +51,16 @@ def get_or_build_graph(
     """
     Return the graph for ``(structure_id, params)``, building on miss.
 
+    Chain tokens (``1UBQ.A``) are first-class: the FULL token is the cache
+    identity; on miss, ``resolve_token`` splits it and only the bare entry id
+    is downloaded/parsed, with ``chain=`` threaded into ``build_graph``. Local
+    paths pass through whole. Because the token is parsed here (not by
+    callers), the CLI ``build`` path is chain-aware for free.
+
     Parameters
     ----------
     structure_id : str
-        PDB ID, AFDB accession, or path to a local structure file.
+        Bare id, chain token, AFDB accession, or path to a local file.
     params : GraphParams
         Frozen graph-construction parameters.
     cache_dir : Path
@@ -76,8 +85,9 @@ def get_or_build_graph(
         saved = torch.load(path, weights_only=False)
         return saved["data"], True
 
-    structure = load_structure(structure_id, Path(cache_dir) / "structures")
-    data = build_graph(structure, params)
+    token = resolve_token(structure_id)
+    structure = load_structure(token.structure_id, Path(cache_dir) / "structures")
+    data = build_graph(structure, params, chain=token.chain)
     tmp = path.with_name(path.name + ".part")
     torch.save({"data": data, "params": params, "structure_id": structure_id}, tmp)
     tmp.replace(path)

@@ -117,3 +117,25 @@ def test_graph_cache_distinguishes_params(tmp_path: Path, toy_pdb_path: Path) ->
 def test_load_ids_missing_file(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError, match="not found"):
         load_structure_ids(tmp_path / "nope.txt")
+
+
+def test_cache_key_changes_with_chain() -> None:
+    assert cache_key("1UBQ.A", GraphParams()) != cache_key("1UBQ", GraphParams())
+
+
+def test_build_graph_chain_selection_matches_default_traversal(toy_pdb_path) -> None:
+    st = load_structure(str(toy_pdb_path))
+    name = next(ch.name for ch in st[0] if len(ch))
+    assert build_graph(st, chain=name).seq == build_graph(st).seq
+
+
+@pytest.mark.slow
+def test_chain_token_end_to_end(tmp_path):
+    """1UBQ.A: parses, downloads the ENTRY once, caches under the FULL token."""
+    from ligase.graph.tokens import parse_token
+
+    assert parse_token("1UBQ.A") == ("1UBQ", "A")
+    data, hit = get_or_build_graph("1UBQ.A", GraphParams(), tmp_path)
+    assert not hit and data.num_nodes == 76
+    again, hit2 = get_or_build_graph("1UBQ.A", GraphParams(), tmp_path)
+    assert hit2 and torch.equal(data.x, again.x)

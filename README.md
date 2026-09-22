@@ -40,32 +40,44 @@ Ligase makes that test a one-flag operation and treats the result as the product
 | # | Milestone | Deliverable | Done when | Status |
 |---|---|---|---|---|
 | M0 | Skeleton | Repo layout, uv env, CI, this README | CI green from first commit; `uv run pytest` passes locally | ☑ |
-| M1 | `embed` | ESM-2 extraction → disk cache + protocol extraction | round-trip + zero-recompute + determinism + conformance tests pass | ☐ |
-| M2 | `graph` | Structures → PyG residue graphs | rotation-invariance & permutation-equivariance tests pass (unskipped) | ☐ |
-| M3 | `encoders` + task | MLP / GVP / GearNet-lite + secondary structure | trains end-to-end on a small CPU-able config; Q3 > seq-only baseline reported | ☐ |
+| M1 | `embed` | ESM-2 extraction → disk cache + protocol extraction | round-trip + zero-recompute + determinism + conformance tests pass | ☑ |
+| M2 | `graph` | Structures → PyG residue graphs | rotation-invariance & permutation-equivariance tests pass (unskipped) | ☑ |
+| M3 | `encoders` + task | MLP / GVP / GearNet-lite + secondary structure | trains end-to-end on a small CPU-able config; Q3 vs seq-only baseline reported | ☑ |
 | M4 | Fusion + honesty | Ablation runs, benchmark table, docs site, plugin docs + conformance CLI | the one-flag promise works verbatim from README commands | ☐ |
 | M5 | Launch | HF Space + launch post | a stranger runs the demo unaided | ☐ |
 
 ### Task ledger
 
-| Task | Milestone | Status | Evidence (commit/PR) | Notes |
+| Task | Milestone | Status | Evidence | Notes |
 |---|---|---|---|---|
-| Skeleton + README + uv + CI | M0 | ☑ | a29d036  | this commit |
-| Hydra config skeleton (M1-relevant groups) | M0/M1 | ☐ | — | Section 8 |
-| `embed/esm.py` extractor (implements `EmbeddingSource`) | M1 | ☐ | — | Section 5.1, 7.1 |
-| `embed/protocol.py` — protocol extracted from working code | M1 | ☐ | — | rule of two: extract, don't invent |
-| Cache decorator wraps any `EmbeddingSource` | M1 | ☐ | — | `utils/caching.py` |
-| Cache tests (round-trip, zero-recompute) | M1 | ☐ | — | |
-| Conformance suite, parametrized over sources | M1 | ☐ | — | `tests/test_conformance.py` |
-| `graph/io.py` structure loader | M2 | ☐ | — | |
-| `graph/build.py` graph builder | M2 | ☐ | — | |
-| Invariance tests unskipped & green | M2 | ☐ | — | the moment of truth |
-| `encoders/mlp.py` | M3 | ☐ | — | the conscience of the library |
-| `encoders/gvp.py` | M3 | ☐ | — | |
-| `encoders/gearnet.py` | M3 | ☐ | — | |
-| `tasks/secondary_structure.py` | M3 | ☐ | — | |
-| Ablation runner + benchmark table | M4 | ☐ | — | |
-| Plugin docs + `ligase conformance` CLI (rule of two) | M4 | ☐ | — | ships with second implementation (Ankh) |
+| Skeleton + README + uv + CI | M0 | ☑ | a29d036 | |
+| Hydra config skeleton | M0/M1 | ☑ | <hash> | configs inside package (pkg:// resolution) |
+| `embed/esm.py` (implements protocol) | M1 | ☑ | <hash> | Q1: HF transformers; sanitize+overlength policies |
+| `embed/protocol.py` — extracted from working code | M1 | ☑ | <hash> | Hard Rule 8 order kept; `cache_id` added under pressure |
+| Cache decorator over any source | M1 | ☑ | <hash> | one h5 per cache_id (Q2); torn-write = miss |
+| Cache tests (round-trip, zero-recompute) | M1 | ☑ | <hash> | |
+| Conformance suite, parametrized | M1 | ☑ | <hash> | mock + cached-mock; real ESM behind @slow |
+| `utils/seqio.py` loaders (FASTA/TXT/CSV) | M1 | ☑ | <hash> | raw strings out; sanitization lives in esm.py |
+| CLI `embed` + dispatch | M1 | ☑ | <hash> | |
+| `graph/io.py` (PDB/AFDB, CIF-everywhere) | M2 | ☑ | <hash> | AFDB v4 pinned; atomic downloads; pLDDT policy |
+| `graph/build.py` + GraphParams | M2 | ☑ | <hash> | Q4: missing-CA skip+log; frozen hashable params |
+| Invariance tests unskipped & green | M2 | ☑ | <hash> | the guarantee demonstrated |
+| `graph/cache.py` — keyed + atomic graph cache | M2 | ☑ | <hash> | cache_id lesson one layer up; extracted at 2nd consumer |
+| Structure manifests + batch build | M2 | ☑ | <hash> | txt/csv; params per-run, not per-row |
+| `configs/graph/default.yaml` | M2 | ☑ | <hash> | knn 10 · radius 10 Å · RBF 20 @ σ 2.5 |
+| CLI `build` | M2 | ☑ | <hash> | |
+| `encoders/mlp.py` | M3 | ☑ | <hash> | structure-blind by construction, proven bitwise |
+| `encoders/gvp.py` | M3 | ☑ | <hash> | invariant mode: vector stream amputated; pos never read |
+| `encoders/gearnet.py` | M3 | ☑ | <hash> | edge states + relational bias; type from offset column |
+| `encoders/protocol.py` — GraphEncoder extracted | M3 | ☑ | <hash> | trio first, lift after; mean_pool dedup ×3 |
+| Encoder conformance suite (parametrized) | M3 | ☑ | <hash> | M2 batching skip absorbed; admission gate for M4 CLI |
+| `tasks/secondary_structure.py` | M3 | ☑ | <hash> | alignment contract via shared traversal; mkdssp lazy |
+| `tasks/dataset.py` — assembly + alignment triple | M3 | ☑ | <hash> | fp16→fp32 upcast lives in attach_embeddings |
+| `tasks/splits.py` — seeded structure splits | M3 | ☑ | <hash> | homology leakage documented as v1 limitation |
+| Training loop + features wiring | M3 | ☑ | <hash> | encoder out_dim = class head (D2 amended) |
+| `train`/`eval` CLI + config groups | M3 | ☑ | <hash> | seq: Q3=<acc>; struct/gvp: Q3=<acc> — 5-structure demo set |
+| Ablation runner + benchmark table | M4 | ☐ | — | full CB513-class set + docs/data_sources.md provenance |
+| Plugin docs + `ligase conformance` CLI | M4 | ☐ | — | ships with Ankh (second source; Q7) |
 | Docs site (mkdocs) live | M4 | ☐ | — | |
 | HF Space | M5 | ☐ | — | |
 | Launch post | M5 | ☐ | — | |
@@ -77,9 +89,9 @@ Ligase makes that test a one-flag operation and treats the result as the product
 The entire reason this library exists, expressed as three commands:
 
 ```bash
-uv run ligase train task=secondary_structure features=seq     # pooled ESM-2 → MLP
-uv run ligase train task=secondary_structure features=struct  # geometry → GNN
-uv run ligase train task=secondary_structure features=both    # the graft
+uv run ligase train task=secondary_structure features=seq model=mlp embed=esm2_t6_8M
+uv run ligase train task=secondary_structure features=struct model=gvp
+uv run ligase train task=secondary_structure features=both model=gearnet
 ```
 
 And it works unchanged on your model (Section 5.1):
@@ -134,6 +146,9 @@ class EmbeddingSource(Protocol):
 
     @property
     def dim(self) -> int: ...
+
+    @property
+    def cache_id(self) -> str: ...
 
     def embed(self, seqs: list[str]) -> dict[str, np.ndarray]:
         """Returns {seq: (L, D) float16}.
@@ -219,75 +234,102 @@ Legend: **plain** = exists now. `(M#)` = not yet scaffolded; arrives with that m
 
 ```
 ligase/
-├── README.md                  ← this document; the contract + status dashboard
-├── LICENSE                    ← MIT
-├── pyproject.toml             ← single source for deps, tools, CLI entry point
-├── uv.lock                    ← (M0) committed once `uv sync` is first run; exact reproducible env
-├── Makefile                   ← thin aliases over uv commands (make test/lint/format)
-├── .gitignore                 ← includes data/, *.h5, outputs/, .dssp/
-├── .pre-commit-config.yaml    ← (M0) ruff lint+format, ruff-check hook; mypy on changed files
-├── .github/
-│   └── workflows/ci.yml       ← uv setup → sync → ruff → mypy → pytest (no GPU)
-│
-│
-├── src/ligase/
-│   ├── __init__.py             ← version only. HARD RULE: imports nothing heavy (Section 11)
-│   ├── cli.py                  ← (M1) @hydra.main entry points: `embed`, `build`, `train`, `eval`
-│   │
-│   ├── configs/                   ← (M1) HYDRA. Objective: every run reproducible from configs alone.
-│   │   ├── config.yaml            ←   root defaults list; see Section 8
-│   │   ├── features/               ←   seq.yaml | struct.yaml | both.yaml   (THE flag)
-│   │   ├── embed/                  ←   one yaml per embedding SOURCE — each instantiates an
-│   │   │                            ←   EmbeddingSource via _target_ (esm2_t33_650M.yaml, my_plm.yaml, …)
-│   │   ├── graph/                  ←   graph construction params (knn k, radius, RBF centers)
-│   │   ├── model/                  ←   mlp.yaml | gvp.yaml | gearnet.yaml
-│   │   ├── task/                   ←   secondary_structure.yaml | binding_site.yaml | none.yaml
-│   │   └── profile/                ←   cpu.yaml (default) | gpu.yaml
-│   │
-│   ├── embed/                  ← OBJECTIVE: sequence → per-residue embeddings, once, cached forever.
-│   │   ├── __init__.py         ←   exports EmbeddingSource + cached()
-│   │   ├── protocol.py         ← (M1) the one-interface plugin surface (~50 lines; Section 5.1)
-│   │   └── esm.py              ← (M1) ESM-2 implementation of the protocol; cache via decorator
-│   │
-│   ├── graph/                  ← OBJECTIVE: structure → one opinionated PyG residue graph.
-│   │   ├── __init__.py
-│   │   ├── io.py               ← (M2) loading (paths or PDB/AFDB IDs), download+cache
-│   │   └── build.py            ← (M2) node/edge features; THE invariance guarantee lives here
-│   │
-│   ├── fuse/                   ← OBJECTIVE: the graft. pLM embeddings onto graph nodes.
-│   │   └── __init__.py         ← (M4) dimension handling, frozen-vs-tuned switch, projections
-│   │
-│   ├── encoders/                ← OBJECTIVE: three encoders, three files, one idea each.
-│   │   ├── __init__.py
-│   │   ├── protocol.py             ← (M3) GraphEncoder contract, extracted from the working trio
-│   │   ├── mlp.py               ← (M3) pooled-embedding baseline. Never delete: it's the conscience.
-│   │   ├── gvp.py               ← (M3) GVP-GNN in invariant mode
-│   │   └── gearnet.py           ← (M3) relational GNN, RBF edge features, edge-type embeddings
-│   │
-│   ├── tasks/                   ← OBJECTIVE: labels in, metrics out, per-residue heads.
-│   │   ├── __init__.py
-│   │   └── secondary_structure.py  ← (M3)
-│   │
-│   └── utils/
+.
+├── LICENSE
+├── Makefile
+├── README.md
+├── data
+│   └── cache
+│       ├── embeddings
+│       ├── graphs
+│       └── structures
+├── docs
+├── examples
+│   └── structures_examples.txt
+├── outputs
+│   ├── cli
+│   ├── embed
+│   └── secondary_structure
+│       ├── seq
+│       │   └── mlp
+│       └── struct
+│           └── gvp
+├── pyproject.toml
+├── src
+│   └── ligase
 │       ├── __init__.py
-│       ├── seeding.py           ← seed_everything; determinism policy — the only real code today, and it sets the tone
-│       ├── caching.py           ← (M1) cached(): decorator over ANY EmbeddingSource
-│       └── logging.py           ← (M3) tiny CSV/JSON metric logger — no accounts, ever
-│
-├── tests/
-│   ├── conftest.py              ← fixtures: tiny toy structure, 5 fake sequences, tmp caches,
-│   ├── test_esm.py              ← a real EmbeddingSource (tiny dim) for CI conformance runs
-│   ├── test_smoke.py            ← import policy, version, determinism — green at M0
-│   ├── test_conformance.py      ← (M1) parametrized suite any EmbeddingSource must pass
-│   └── test_invariance.py       ← M2 acceptance math (Section 10); skipped, but the math is written down
-│
-├── examples/                    ← notebooks land M3+: 01_embed_and_cache, 02_build_graphs,
-│                                 ← 03_secondary_structure_ablation
-├── docs/                        ← (M4) mkdocs; API reference generated from docstrings
-└── data/                        ← gitignored. Download + cache root. Never commit data.
+│       ├── cli.py
+│       ├── configs
+│       │   ├── __init__.py
+│       │   ├── config.yaml
+│       │   ├── embed
+│       │   │   ├── __init__.py
+│       │   │   ├── esm2_t33_650M.yaml
+│       │   │   └── esm2_t6_8M.yaml
+│       │   ├── features
+│       │   │   ├── both.yaml
+│       │   │   ├── seq.yaml
+│       │   │   └── struct.yaml
+│       │   ├── graph
+│       │   │   ├── __init__.py
+│       │   │   └── default.yaml
+│       │   ├── model
+│       │   │   ├── gearnet.yaml
+│       │   │   ├── gvp.yaml
+│       │   │   └── mlp.yaml
+│       │   ├── profile
+│       │   │   ├── __init__.py
+│       │   │   ├── cpu.yaml
+│       │   │   └── gpu.yaml
+│       │   └── task
+│       │       └── secondary_structure.yaml
+│       ├── embed
+│       │   ├── __init__.py
+│       │   ├── esm.py
+│       │   └── protocol.py
+│       ├── encoders
+│       │   ├── __init__.py
+│       │   ├── gearnet.py
+│       │   ├── gvp.py
+│       │   ├── mlp.py
+│       │   └── protocol.py
+│       ├── fuse
+│       │   └── __init__.py
+│       ├── graph
+│       │   ├── __init__.py
+│       │   ├── build.py
+│       │   ├── cache.py
+│       │   └── io.py
+│       ├── tasks
+│       │   ├── __init__.py
+│       │   ├── dataset.py
+│       │   ├── secondary_structure.py
+│       │   ├── splits.py
+│       │   └── train.py
+│       └── utils
+│           ├── __init__.py
+│           ├── caching.py
+│           ├── logging.py
+│           ├── seeding.py
+│           └── seqio.py
+├── tests
+│   ├── conftest.py
+│   ├── test_cli.py
+│   ├── test_conformance.py
+│   ├── test_dataset.py
+│   ├── test_encoder_conformance.py
+│   ├── test_esm.py
+│   ├── test_gearnet.py
+│   ├── test_graph.py
+│   ├── test_gvp.py
+│   ├── test_invariance.py
+│   ├── test_mlp.py
+│   ├── test_secondary_structure.py
+│   ├── test_seqio.py
+│   ├── test_smoke.py
+│   └── test_train.py
+└── uv.lock
 ```
-
-**Where things stand right now (pre-M0 complete):** the package skeleton, empty module files, and `utils/seeding.py` exist; `configs/`, `uv.lock`, `.pre-commit-config.yaml`, `cli.py`, and `docs/` do not yet. Closing that gap — plus a green CI run — is exactly what M0 is (Section 2). Every `(M#)` tag above should flip to plain text, and its checkbox in the Task ledger should flip to ☑, in the same commit.
 
 ### 7.1 Module contracts (implement exactly these; signatures are the API)
 
@@ -355,9 +397,11 @@ def test_cache_roundtrip(source): ...  # identical arrays; second call = zero fo
 **`graph/io.py`** — M2
 
 ```python
-load_structure(path_or_id: str) -> gemmi.Structure
-# Accepts local .pdb/.cif paths AND 4-char PDB IDs / AFDB UniProt accessions.
-# Downloads to data/cache/structures. AlphaFold pLDDT must survive into build().
+# graph/io.py — shipped: load_structure(path_or_id, cache_dir), resolve_url,
+# load_structure_ids (txt/csv manifests). CIF everywhere (RCSB + AFDB mmCIF,
+# one parsing path); AFDB pinned v4; atomic .part→replace downloads.
+# pLDDT from B-factor ONLY for AlphaFold models (info["_ligase_plddt_source"]);
+# experimental → uniform 1.0. Settled (Q4): residues without CA → skip + log.
 ```
 
 Open questions: asymmetric unit vs assembly (lean: asymmetric unit); missing residues = mask node + log (lean yes); one graph per chain (v1: yes).
@@ -365,12 +409,23 @@ Open questions: asymmetric unit vs assembly (lean: asymmetric unit); missing res
 **`graph/build.py`** — M2
 
 ```python
-build_graph(
-    structure, *,
-    edge_knn: int = 10,
-    edge_radius: float = 10.0,           # Ångströms
-    rbf_centers: ... ,                    # from configs/graph
-) -> torch_geometric.data.Data
+# graph/build.py — shipped:
+@dataclass(frozen=True)
+class GraphParams:  # frozen + hashable → cache-keyable
+    edge_knn: int = 10; edge_radius: float = 10.0
+    rbf_min: float = 0.0; rbf_max: float = 20.0
+    rbf_count: int = 20; rbf_sigma: float = 2.5
+
+def build_graph(structure, params=DEFAULT_PARAMS, chain=None) -> Data
+def build_graph_from_coords(coords, codes, plddt, params) -> Data
+def select_chain(structure, chain_id=None) -> gemmi.Chain   # shared with the labeler
+def is_protein_ca(res) -> bool                              # shared with the labeler
+
+# PINNED SCHEMA (encoder conformance enforces):
+#   x (n,1) fp32 pLDDT/100 · residue_type int64 into AA="ACDEFGHIKLMNPQRSTVWYX"
+#   edge_index (2,E) directed both ways · edge_attr (E, rbf_count+1) = [RBF(d) | clamp(±8) seq-offset]
+#   pos (n,3) Cα = DATA not feature · residue_index · seq: str
+# INVARIANCE GUARANTEE: every feature is a function of distances/graph-structure/sequence only.
 ```
 
 Node features: pLM embedding (if seq) · residue code · pLDDT. Edges: union of sequence-adjacency (i, i±1) and kNN/radius on Cα distance. Edge features: RBF(Cα distance) · sequence offset. **INVARIANCE GUARANTEE:** every feature is a function of distances/angles only. Rotating or translating coordinates must not change any feature. Enforced by tests.
@@ -386,7 +441,30 @@ graft(node_feats: Tensor, embeddings: Tensor, mode: str) -> Tensor
 
 Open questions: linear vs 2-layer projection (start linear); frozen-only in v1.
 
-**`encoders/*.py`** — M3. Each: `forward(batch) -> per-residue logits` plus a `pool() -> per-protein embedding`. Three files, ~250 lines each, math commented.
+**`encoders/*.py`** — M3. Each: `forward(batch) -> per-residue logits` plus a `pool() -> per-protein embedding`.
+```python
+# encoders/protocol.py — shipped (extracted from the working trio; Hard Rule 8):
+class GraphEncoder(Protocol)   # forward(batch)->(n,out_dim); pool(out,batch)->(num_graphs,out_dim)
+def mean_pool(out, batch)      # the one true pool; unbatched Data = one graph
+# Constructor contract (ecosystem-facing): MLP takes (in_dim, …, out_dim);
+# non-MLP encoders take (x_dim, edge_in_dim, out_dim). Widths are
+# wiring-resolved (train.py), never hardcoded in model yamls.
+# Admission: tests/test_encoder_conformance.py — the same suite the built-ins pass.
+# M4: `ligase conformance` CLI + plugin docs ship with Ankh (Q7/Q9).
+
+# tasks/secondary_structure.py — shipped:
+def secondary_structure_labels(structure, chain=None) -> str
+    # ALIGNMENT CONTRACT: labels[i] == label of build_graph node i. Shared traversal.
+def map_q8_to_q3 / encode_q8 / encode_q3   # named, total, tested; unknown chars raise
+def classification_metrics / report_metrics  # accuracy + per-class F1, zero_division=0
+# mkdssp = lazy system dep (4.x positional + legacy -i/-o both handled); seq paths never need it.
+
+# tasks/dataset.py — shipped: build_examples (skip-and-log policy),
+#   attach_embeddings (L==num_nodes enforced; THE fp16→fp32 upcast lives here).
+# tasks/splits.py — shipped: split_ids (seeded, order-free, min-guarantee);
+#   v1 limitation: structure-level split, homology leakage documented.
+# tasks/train.py — shipped: run_training / evaluate_saved; features wiring
+#   (seq→x=emb · struct→x=pLDDT · both→[emb|pLDDT]); seed-determinism pinned by test.```
 
 **`tasks/secondary_structure.py`** — M3. Labels from DSSP (system dep `mkdssp`; document install, degrade gracefully). Metrics: Q3/Q8 accuracy + per-class F1 via scikit-learn. 8-state → 3-state mapping is a named, tested function, not an inline lambda.
 
@@ -418,11 +496,13 @@ Embedding configs are objects, not names: each `configs/embed/*.yaml` instantiat
 Commands that must work verbatim by M4 (test them in CI as a smoke check):
 
 ```bash
-uv run ligase embed  embed=esm2_t33_650M                       # fill the cache
-uv run ligase build graph=default                               # graphs → data/cache/graphs
-uv run ligase train task=secondary_structure features=seq       # CPU, minutes
-uv run ligase train task=secondary_structure features=both profile=gpu
-uv run ligase eval   task=secondary_structure features=both     # metrics from existing outputs
+uv run ligase embed  embed=esm2_t6_8M 'sequences=[ACDEFGHIKLMNPQRSTVWY]'
+uv run ligase build structure=1UBQ
+uv run ligase build structures_file=examples/structures_example.txt
+uv run ligase train features=seq model=mlp embed=esm2_t6_8M
+uv run ligase train features=struct model=gvp
+uv run ligase train features=both model=gearnet profile=gpu
+uv run ligase eval   run_dir=outputs/secondary_structure/seq/mlp/<timestamp>
 ```
 
 `profile=cpu` is the default: fp32, small batches, tiny splits — everything runs on a laptop. `profile=gpu` switches dtype/batch/split sizes only. Hardware is never load-bearing for correctness.
@@ -437,7 +517,7 @@ uv run ligase eval   task=secondary_structure features=both     # metrics from e
 
 ## 10. Testing strategy — verify the math, not just the plumbing
 
-These acceptance tests are written **now**, in `tests/test_invariance.py`, skipped until M2. They may not be quietly deleted or weakened:
+These acceptance tests have been green and unskipped since M2; the encoder suite (item 7) has been green since M3. They may not be quietly deleted or weakened:" Append to item 3: "(Enforced at the encoder layer from M3 — a graph has no forward(). Documented re-scope, since closed by test_encoder_conformance.py.)" Append to item 7: "(Shipped: tests/test_encoder_conformance.py — bitwise for same-computation comparisons, fp64 + atol 1e-9 for cross-graph properties. Tolerance doctrine lives in its docstring.)
 
 1. **Rotation invariance** — for random rotation R: `build_graph(R·coords)` produces node/edge features identical (atol 1e-5) to `build_graph(coords)`. Holds because every feature is a distance or angle.
 2. **Permutation equivariance** — permuting residue order permutes per-residue outputs identically; pooled output is unchanged.
@@ -505,9 +585,19 @@ If any of those four lines fails for a newcomer, that is a P0 bug. This block is
 
 | Date | Task (from ledger) | What changed | Decisions made / open questions settled | Commit |
 |---|---|---|---|---|
-| September 13 2026 | README patch: model-agnostic core | Sections 0/2/3/4/5(+5.1)/7/8/9/10/11/15/17 updated; ledger +4 tasks; conformance suite + mock fixture added to tree | Harness framing adopted; rule of two becomes Hard Rule 8; Q7/Q8 opened; Hydra defaults-list syntax fixed (`- _seed: 42` → plain `seed: 42`) | — |
-| September 13 2026 | Skeleton + README + uv + CI | — | created the main skeleton | (see task ledger) |
-| September 13 2026 | README patch: encoder contract + task admission rule | Sections 5.2/7/10/15/17; tree +1 file | GraphEncoder protocol adopted; task growth axis recorded (Q9, Q10) | |
+| <date> | M1: embed module | esm/protocol/caching/seqio/conformance/CLI | Q1 HF transformers; Q2 one h5 per cache_id; Q3 map-to-X+log; contract amendment: cache_id added to EmbeddingSource | <hash> |
+| <date> | M2: graph io + build | io.py/build.py/default.yaml/CLI build | Q4 settled: skip+log (overturns mask lean); GraphParams frozen dataclass; CIF everywhere, AFDB v4, pLDDT policy | <hash> |
+| <date> | M2: invariance green | test_invariance unskipped | batching-equivalence re-homed to encoder conformance (a graph has no forward()); documented re-scope, since closed in M3 | <hash> |
+| <date> | M2: graph cache + batch build | graph/cache.py, manifests, batch CLI | cache extracted at 2nd consumer; keyed by (structure, GraphParams) digest — cache_id lesson one layer up; atomic writes; per-row params rejected until 2nd need | <hash> |
+| <date> | M3: MLP baseline | mlp.py + test_mlp | D1: one pipeline, honesty by test (blindness bitwise); D2: task-agnostic encoders; D3: explicit wiring-resolved widths, no lazy modules | <hash> |
+| <date> | M3: GVP invariant mode | gvp.py + test_gvp | scalar pathway only; pos never read (bitwise); edges-only structure entry; raw ±8 offset calibrated by first message Linear | <hash> |
+| <date> | M3: GearNet-lite | gearnet.py + test_gearnet | relational bias not weights (documented deviation); edge states persist across layers; edge type = |offset|==1 | <hash> |
+| <date> | M3: dtype contract | mlp/gvp guards | encoders accept fp32+fp64, fp16 forbidden; property tests standardized: fp64, atol 1e-9 | <hash> |
+| <date> | M3: encoder protocol + conformance | protocol.py, test_encoder_conformance, pool delegation, M2 skip deleted | Hard Rule 8 order kept; tolerance doctrine codified; MLP excluded from edge tests BY DESIGN (blindness is its honesty) | <hash> |
+| <date> | M3: task module | secondary_structure.py + build.py traversal extraction | select_chain/is_protein_ca public at 2nd consumer — labels and graphs share ONE admission rule; missing DSSP → '-' + log; unknown Q8 raises; mkdssp 4.x + legacy both handled (found by first real-oracle run) | <hash> |
+| <date> | M3: dataset + splits | dataset.py, splits.py, example manifest | small bundled manifest for the M3 done-when; full CB513-class set + provenance deferred to M4; alignment triple pinned; fp16→fp32 upcast located at attach_embeddings; homology leakage documented | <hash> |
+| <date> | M3: training loop + CLI | train.py, logging.py, train/eval apps, config groups | D2 amended: encoder out_dim IS the head; JSONL metrics; features=struct skips embed instantiation; run dir task/features/model for ablation side-by-side | <hash> |
+| <date> | M3: integration-run fixes | configs, split min-guarantee, num_classes derivation, edge_in_dim unification | first real CLI run caught four unit-invisible bugs (missing name keys, empty val at n=5, top-level structures_file default, GVP/GearNet constructor mismatch) — the gate's third layer: unit, conformance, integration | <hash> |
 | — | — | — | — | — |
 
 ## 17. Open questions ledger

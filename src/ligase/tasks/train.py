@@ -16,7 +16,7 @@ from ligase.embed import EmbeddingSource
 from ligase.graph.build import GraphParams
 from ligase.tasks.dataset import Example, attach_embeddings, build_examples
 from ligase.tasks.secondary_structure import encode_q3, encode_q8, report_metrics
-from ligase.tasks.splits import split_ids
+from ligase.tasks.splits import load_groups, split_ids
 from ligase.utils.logging import append_json
 from ligase.utils.seeding import seed_everything
 
@@ -122,6 +122,19 @@ def _device(cfg: DictConfig) -> str:
     return "cuda" if want == "cuda" and torch.cuda.is_available() else "cpu"
 
 
+def _group_labels(ids: list[str], groups_file: str | Path | None) -> list[str] | None:
+    if not groups_file:
+        return None
+    lookup = load_groups(groups_file)
+    missing = [i for i in ids if i not in lookup]
+    if missing:
+        raise SystemExit(
+            f"{len(missing)} ids absent from groups file (first: {missing[0]!r})"
+            "--- regenerate groups from the same manifest"
+        )
+    return [lookup[i] for i in ids]
+
+
 def run_training(cfg: DictConfig, ids: list[str], run_dir: Path | None = None) -> dict[str, float]:
     """Config -> trained model -> test metrics. Returns the final test metrics.
 
@@ -159,8 +172,13 @@ def run_training(cfg: DictConfig, ids: list[str], run_dir: Path | None = None) -
         emb_dim = source.dim
 
     by_id = {ex.structure_id: ex for ex in examples}
+    surviving = [ex.structure_id for ex in examples]
     splits = split_ids(
-        [ex.structure_id for ex in examples], cfg.task.train_frac, cfg.task.val_frac, cfg.seed
+        surviving,
+        cfg.task.train_frac,
+        cfg.task.val_frac,
+        cfg.seed,
+        groups=_group_labels(surviving, cfg.task.get("groups_file")),
     )
     data = {
         name: encode_examples([by_id[i] for i in ids_], cfg.features.name, states)
@@ -200,9 +218,9 @@ def run_training(cfg: DictConfig, ids: list[str], run_dir: Path | None = None) -
 
 
 def evaluate_saved(cfg: DictConfig, ids: list[str], run_dir: Path) -> dict[str, float]:
-    """Rebuild the test split deterministically and score a saved run's weights."""
     ckpt = torch.load(Path(run_dir) / "best.pt", weights_only=False)  # we wrote it
     states = STATES[cfg.task.labels]
+    saved = OmegaConf.create(ckpt["config"])
     examples, _ = build_examples(
         ids,
         GraphParams(**{k: cfg.graph[k] for k in GraphParams.__dataclass_fields__}),
@@ -215,8 +233,13 @@ def evaluate_saved(cfg: DictConfig, ids: list[str], run_dir: Path) -> dict[str, 
     else:
         emb_dim = 0
     by_id = {ex.structure_id: ex for ex in examples}
+    surviving = [ex.structure_id for ex in examples]
     splits = split_ids(
-        [ex.structure_id for ex in examples], cfg.task.train_frac, cfg.task.val_frac, cfg.seed
+        surviving,
+        saved.task.train_frac,
+        saved.task.val_frac,
+        saved.seed,
+        groups=_group_labels(surviving, saved.task.get("groups_file")),
     )
     test_data = encode_examples([by_id[i] for i in splits["test"]], cfg.features.name, states)
     model = build_model(cfg, x_width(cfg.features.name, emb_dim), cfg.graph.rbf_count + 1)
