@@ -13,6 +13,7 @@ from torch_geometric.data import Batch, Data
 from torch_geometric.loader import DataLoader
 
 from ligase.embed import EmbeddingSource
+from ligase.fuse import GraftedEncoder, ProjectionGraft, concat
 from ligase.graph.build import GraphParams
 from ligase.tasks.dataset import Example, attach_embeddings, build_examples
 from ligase.tasks.secondary_structure import encode_q3, encode_q8, report_metrics
@@ -25,11 +26,18 @@ logger = logging.getLogger(__name__)
 STATES = {"q3": 3, "q8": 8}
 
 
-def x_width(features: str, emb_dim: int) -> int:
+def x_width(features: str, emb_dim: int, mode: str = "concat", proj_width: int = 128) -> int:
     try:
-        return {"seq": emb_dim, "struct": 1, "both": emb_dim + 1}[features]
+        base = {"seq": emb_dim, "struct": 1, "both": emb_dim + 1}[features]
     except KeyError:
         raise ValueError(f"features must be seq|struct|both, got {features!r}") from None
+    if mode not in ("concat", "project"):
+        raise ValueError(f"features.mode must be concat|project, got {mode!r}")
+    if mode == "project":
+        if features != "both":
+            raise ValueError(f"features.mode='project' requires features=both, got {features!r}")
+        return proj_width + 1
+    return base
 
 
 def encode_examples(examples: list[Example], features: str, states: int) -> list[Data]:
@@ -44,7 +52,7 @@ def encode_examples(examples: list[Example], features: str, states: int) -> list
                     "call attach_embeddings first"
                 )
             emb = torch.from_numpy(ex.embeddings)
-            g.x = emb if features == "seq" else torch.cat([emb, g.x], dim=1)
+            g.x = emb if features == "seq" else concat(node_feats=g.x, embeddings=emb)
         g.y = torch.from_numpy(encode(ex.labels))
         out.append(g)
     return out
@@ -107,14 +115,18 @@ def train_model(
     return best_acc
 
 
-def build_model(cfg: DictConfig, width: int, edge_dim: int) -> torch.nn.Module:
+def build_model(
+    cfg: DictConfig, width: int, edge_dim: int, graft: torch.nn.Module | None = None
+) -> torch.nn.Module:
     raw = OmegaConf.to_container(cfg.model, resolve=True) or {}
     raw.pop("name", None)
     target = str(raw.get("_target_", ""))
     out_dim = STATES[str(cfg.task.labels)]
     if target.endswith("MLPEncoder"):
-        return instantiate(raw, in_dim=width, out_dim=out_dim)
-    return instantiate(raw, x_dim=width, edge_in_dim=edge_dim, out_dim=out_dim)
+        inner: torch.nn.Module = instantiate(raw, in_dim=width, out_dim=out_dim)
+    else:
+        inner = instantiate(raw, x_dim=width, edge_in_dim=edge_dim, out_dim=out_dim)
+    return GraftedEncoder(graft, inner) if graft is not None else inner
 
 
 def _device(cfg: DictConfig) -> str:
@@ -166,6 +178,8 @@ def run_training(cfg: DictConfig, ids: list[str], run_dir: Path | None = None) -
         raise SystemExit(f"need >= 3 structures for a split, got {len(examples)}")
 
     emb_dim = 0
+    mode = str(cfg.features.get("mode", "concat"))
+    proj_width = int(cfg.features.get("width", 128))
     if cfg.features.name in ("seq", "both"):
         source: EmbeddingSource = instantiate(cfg.embed)
         attach_embeddings(examples, source, cfg.cache_dir)
@@ -184,8 +198,9 @@ def run_training(cfg: DictConfig, ids: list[str], run_dir: Path | None = None) -
         name: encode_examples([by_id[i] for i in ids_], cfg.features.name, states)
         for name, ids_ in splits.items()
     }
-    width = x_width(cfg.features.name, emb_dim)
-    model = build_model(cfg, width, cfg.graph.rbf_count + 1).to(device)
+    width = x_width(cfg.features.name, emb_dim, mode, proj_width)
+    graft = ProjectionGraft(emb_dim, proj_width) if mode == "project" else None
+    model = build_model(cfg, width, cfg.graph.rbf_count + 1, graft=graft).to(device)
 
     gen = torch.Generator().manual_seed(cfg.seed)  # shuffle determinism
     loader = DataLoader(
@@ -219,19 +234,27 @@ def run_training(cfg: DictConfig, ids: list[str], run_dir: Path | None = None) -
 
 def evaluate_saved(cfg: DictConfig, ids: list[str], run_dir: Path) -> dict[str, float]:
     ckpt = torch.load(Path(run_dir) / "best.pt", weights_only=False)  # we wrote it
-    states = STATES[cfg.task.labels]
     saved = OmegaConf.create(ckpt["config"])
+    try:
+        states = STATES[str(saved.task.labels)]
+    except KeyError:
+        raise SystemExit(
+            f"saved task.labels must be 'q3' or 'q8', got {saved.task.labels!r}"
+        ) from None
     examples, _ = build_examples(
         ids,
-        GraphParams(**{k: cfg.graph[k] for k in GraphParams.__dataclass_fields__}),
+        GraphParams(**{k: saved.graph[k] for k in GraphParams.__dataclass_fields__}),
         cfg.cache_dir,
     )
-    if cfg.features.name in ("seq", "both"):
-        source: EmbeddingSource = instantiate(cfg.embed)
+    emb_dim = 0
+    mode = "concat"
+    proj_width = 128
+    if saved.features.name in ("seq", "both"):
+        source: EmbeddingSource = instantiate(saved.embed)
         attach_embeddings(examples, source, cfg.cache_dir)
         emb_dim = source.dim
-    else:
-        emb_dim = 0
+        mode = str(saved.features.get("mode", "concat"))
+        proj_width = int(saved.features.get("width", 128))
     by_id = {ex.structure_id: ex for ex in examples}
     surviving = [ex.structure_id for ex in examples]
     splits = split_ids(
@@ -241,7 +264,9 @@ def evaluate_saved(cfg: DictConfig, ids: list[str], run_dir: Path) -> dict[str, 
         saved.seed,
         groups=_group_labels(surviving, saved.task.get("groups_file")),
     )
-    test_data = encode_examples([by_id[i] for i in splits["test"]], cfg.features.name, states)
-    model = build_model(cfg, x_width(cfg.features.name, emb_dim), cfg.graph.rbf_count + 1)
+    test_data = encode_examples([by_id[i] for i in splits["test"]], saved.features.name, states)
+    width = x_width(saved.features.name, emb_dim, mode, proj_width)
+    graft = ProjectionGraft(emb_dim, proj_width) if mode == "project" else None
+    model = build_model(saved, width, saved.graph.rbf_count + 1, graft=graft)
     model.load_state_dict(ckpt["state_dict"])
     return evaluate(model, test_data, states, _device(cfg))

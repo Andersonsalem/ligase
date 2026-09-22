@@ -1,1 +1,9 @@
 name: both
+
+# how the embedding block meets node features
+#   concat:  x = [emb | pLDDT] zero parameters, the pinned wiring (default;
+#            the mode the 9-row ablation grid uses)
+#   project: a trainable Linear(emb_dim -> width) runs on the embedding block
+#            first, then concat (trained jointly with the head)
+mode: concat
+width: 128   # projection width (only for project mode)
