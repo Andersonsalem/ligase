@@ -109,6 +109,11 @@ def test_end_to_end_struct(toy_set, tmp_path: Path) -> None:
     assert (tmp_path / "run" / "test_metrics.json").exists()
     saved = json.loads((tmp_path / "run" / "test_metrics.json").read_text())
     assert saved == metrics  # file matches return value
+    splits = json.loads((tmp_path / "run" / "splits.json").read_text())
+    assert set(splits) == {"train", "val", "test"}
+    assert sorted(i for v in splits.values() for i in v) == sorted(
+        ex.structure_id for ex in toy_set
+    )  # file matches return value
 
 
 def test_training_is_seed_deterministic(toy_set, tmp_path: Path) -> None:

@@ -148,12 +148,7 @@ def _group_labels(ids: list[str], groups_file: str | Path | None) -> list[str] |
 
 
 def run_training(cfg: DictConfig, ids: list[str], run_dir: Path | None = None) -> dict[str, float]:
-    """Config -> trained model -> test metrics. Returns the final test metrics.
 
-    ``run_dir`` defaults to Hydra's runtime output dir; tests pass tmp paths.
-    Saves: ``best.pt`` (weights + config snapshot), ``metrics.jsonl``,
-    ``test_metrics.json``.
-    """
     if run_dir is None:
         from hydra.core.hydra_config import HydraConfig
 
@@ -178,12 +173,13 @@ def run_training(cfg: DictConfig, ids: list[str], run_dir: Path | None = None) -
         raise SystemExit(f"need >= 3 structures for a split, got {len(examples)}")
 
     emb_dim = 0
-    mode = str(cfg.features.get("mode", "concat"))
-    proj_width = int(cfg.features.get("width", 128))
     if cfg.features.name in ("seq", "both"):
         source: EmbeddingSource = instantiate(cfg.embed)
         attach_embeddings(examples, source, cfg.cache_dir)
         emb_dim = source.dim
+
+    mode = str(cfg.features.get("mode", "concat"))
+    proj_width = int(cfg.features.get("width", 128))
 
     by_id = {ex.structure_id: ex for ex in examples}
     surviving = [ex.structure_id for ex in examples]
@@ -194,6 +190,8 @@ def run_training(cfg: DictConfig, ids: list[str], run_dir: Path | None = None) -
         cfg.seed,
         groups=_group_labels(surviving, cfg.task.get("groups_file")),
     )
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / "splits.json").write_text(json.dumps(splits, indent=2))
     data = {
         name: encode_examples([by_id[i] for i in ids_], cfg.features.name, states)
         for name, ids_ in splits.items()
