@@ -1,0 +1,11 @@
+features,model,mode,n_train,n_val,n_test,Q3_accuracy,f1_macro,f1_H,f1_E,f1_C,minutes,command
+seq,mlp,concat,3,1,1,0.43478260869565216,0.202,0.0,0.0,0.6060606060606061,0.1,uv run ligase train task=secondary_structure features=seq model=mlp embed=esm2_t6_8M profile=cpu task.labels=q3 profile.epochs=3
+seq,gvp,concat,3,1,1,0.2608695652173913,0.177,0.44,0.0,0.09090909090909091,0.0,uv run ligase train task=secondary_structure features=seq model=gvp embed=esm2_t6_8M profile=cpu task.labels=q3 profile.epochs=3
+seq,gearnet,concat,3,1,1,0.43478260869565216,0.202,0.0,0.0,0.6060606060606061,0.0,uv run ligase train task=secondary_structure features=seq model=gearnet embed=esm2_t6_8M profile=cpu task.labels=q3 profile.epochs=3
+struct,mlp,concat,3,1,1,0.4782608695652174,0.2157,0.6470588235294118,0.0,0.0,0.0,uv run ligase train task=secondary_structure features=struct model=mlp embed=esm2_t6_8M profile=cpu task.labels=q3 profile.epochs=3
+struct,gvp,concat,3,1,1,0.5434782608695652,0.3831,0.5777777777777777,0.0,0.5714285714285714,0.0,uv run ligase train task=secondary_structure features=struct model=gvp embed=esm2_t6_8M profile=cpu task.labels=q3 profile.epochs=3
+struct,gearnet,concat,3,1,1,0.4782608695652174,0.2157,0.6470588235294118,0.0,0.0,0.0,uv run ligase train task=secondary_structure features=struct model=gearnet embed=esm2_t6_8M profile=cpu task.labels=q3 profile.epochs=3
+both,mlp,concat,3,1,1,0.43478260869565216,0.202,0.0,0.0,0.6060606060606061,0.0,uv run ligase train task=secondary_structure features=both model=mlp embed=esm2_t6_8M profile=cpu task.labels=q3 profile.epochs=3
+both,gvp,concat,3,1,1,0.5652173913043478,0.3607,0.711864406779661,0.0,0.37037037037037035,0.0,uv run ligase train task=secondary_structure features=both model=gvp embed=esm2_t6_8M profile=cpu task.labels=q3 profile.epochs=3
+both,gearnet,concat,3,1,1,0.4782608695652174,0.2157,0.6470588235294118,0.0,0.0,0.0,uv run ligase train task=secondary_structure features=both model=gearnet embed=esm2_t6_8M profile=cpu task.labels=q3 profile.epochs=3
+both,gearnet,project,3,1,1,0.4782608695652174,0.2157,0.6470588235294118,0.0,0.0,0.0,uv run ligase train task=secondary_structure features=both model=gearnet embed=esm2_t6_8M profile=cpu task.labels=q3 features.mode=project profile.epochs=3

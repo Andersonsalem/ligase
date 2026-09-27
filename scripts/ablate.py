@@ -16,18 +16,21 @@ GRID = [(f, m, "concat") for f in ("seq", "struct", "both") for m in ("mlp", "gv
 EXTRA = [("both", "gearnet", "project")]
 
 
-def _overrides(features: str, model: str, mode: str, args: argparse.Namespace) -> str:
-    cmd = (
-        f"uv run ligase train task=secondary_structure features={features}"
-        f"model={model} embed={args.embed} profile={args.profile} task.labels={args.labels}"
-    )
+def _overrides(features: str, model: str, mode: str, args: argparse.Namespace) -> list[str]:
+    ov = [
+        f"features={features}",
+        f"model={model}",
+        f"embed={args.embed}",
+        f"profile={args.profile}",
+        f"task.labels={args.labels}",
+    ]
     if mode == "project":
-        cmd += " features.mode=project"
+        ov.append("features.mode=project")
     if args.groups != "none":
-        cmd += f" task.groups_file={args.groups}"
+        ov.append(f"task.groups_file={args.groups}")
     if args.epochs is not None:
-        cmd += f" profile.epochs={args.epochs}"
-    return cmd
+        ov.append(f"profile.epochs={args.epochs}")
+    return ov
 
 
 def _command(features: str, model: str, mode: str, args: argparse.Namespace) -> str:
@@ -47,6 +50,12 @@ def _command(features: str, model: str, mode: str, args: argparse.Namespace) -> 
 def _run_row(
     features: str, model: str, mode: str, args: argparse.Namespace, ids: list[str]
 ) -> dict:
+    overrides = _overrides(features, model, mode, args)
+    if not isinstance(overrides, list) or not all(
+        isinstance(o, str) and "=" in o for o in overrides
+    ):
+        raise SystemExit(f"_overrides must return a list of key=value strings, got: {overrides!r}")
+    cfg = compose(config_name="config", overrides=overrides)
     cfg = compose(config_name="config", overrides=_overrides(features, model, mode, args))
     if args.groups != "none":
         cfg.task.groups_file = args.groups  # yaml key is optional

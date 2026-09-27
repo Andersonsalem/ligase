@@ -1,6 +1,6 @@
 name: secondary_structure
 labels: q3              # q3 | q8
 structures_file: examples/structures_examples.txt   # default file; override freely
-groups_file: null   # path to a groups JSON (benchmarks/cb513_groups.json)
+groups_file: null   # path to a groups JSON (benchmarks/cb513_groups.json) null is just legacy random split
 train_frac: 0.7
 val_frac: 0.15
