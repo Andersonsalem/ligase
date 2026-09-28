@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import time
 from pathlib import Path
 
@@ -109,6 +110,7 @@ def _caveat(args: argparse.Namespace) -> str:
 
 
 def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
     parser = argparse.ArgumentParser(description="Run the ablation grid (see module docstring).")
     parser.add_argument("--ids", default="benchmarks/cb513_chains.txt")
     parser.add_argument("--embed", default="esm2_t33_650M")

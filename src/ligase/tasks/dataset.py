@@ -6,6 +6,7 @@ from pathlib import Path
 
 import numpy as np
 from torch_geometric.data import Data
+from tqdm import tqdm
 
 from ligase.embed import EmbeddingSource
 from ligase.graph.build import DEFAULT_PARAMS, GraphParams
@@ -37,7 +38,7 @@ def build_examples(
 
     ``ids`` are manifest tokens: local paths, bare ids, or ``PDBID.CHAIN``
     chain tokens. Chain tokens produce single-chain graphs, and labels share
-    the same chain selection — the alignment triple holds per token. The
+    the same chain selection the alignment triple holds per token. The
     token is parsed here for labels and again inside
     ``get_or_build_graph``; ``parse_token`` is pure, so the duplication is
     free and keeps the cache choke point self-contained.
@@ -73,15 +74,13 @@ def attach_embeddings(
     examples: list[Example],
     source: EmbeddingSource,
     cache_dir: Path | str = "data/cache",
+    chunk_size: int = 64,
 ) -> None:
-    """Attach per-residue embeddings, node-aligned, in place.
-
-    The embedding cache's fp16 is upcast to fp32.
-    Raises on L != num_nodes:
-    misalignment is the disease this library exists to cure.
-    """
     wrapped = cached(source, Path(cache_dir) / "embeddings")
-    out = wrapped.embed([ex.graph.seq for ex in examples])  # duplicates dedupe in cache
+    unique = list(dict.fromkeys(ex.graph.seq for ex in examples))
+    out: dict[str, np.ndarray] = {}
+    for i in tqdm(range(0, len(unique), chunk_size), desc="embeddings", unit="seq"):
+        out.update(wrapped.embed(unique[i : i + chunk_size]))
     for ex in examples:
         emb = out[ex.graph.seq]
         if emb.shape[0] != ex.graph.num_nodes:

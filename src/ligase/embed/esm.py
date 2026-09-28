@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 
 # 20 canonical AAs + ambiguity code in ESM2's vocab
 ALLOWED = set("ACDEFGHIKLMNPQRSTVWY") | set("XBZU")
+MAX_TOKENS_PER_BATCH = 4096
 
 
 def sanitize_sequence(seq: str) -> str:
@@ -20,6 +21,32 @@ def sanitize_sequence(seq: str) -> str:
         for c in bad:
             s = s.replace(c, "X")
     return s
+
+
+def _plan_batches(lengths: list[int], budget: int) -> list[list[int]]:
+    """Greedy token-budget batching over a stable length sort.
+
+    Returns batches of ORIGINAL indices. Property pinned by tests: for each
+    batch, max(length in batch) * len(batch) <= budget (so a lone sequence
+    longer than the budget still forms a batch of one — the budget is a
+    memory guard, never a correctness filter). Stable sort => deterministic
+    batching => bitwise repeat calls.
+    """
+    order = sorted(range(len(lengths)), key=lambda i: lengths[i])
+    batches: list[list[int]] = []
+    current: list[int] = []
+    cur_max = 0
+    for i in order:
+        new_max = max(cur_max, lengths[i])
+        if current and new_max * (len(current) + 1) > budget:
+            batches.append(current)
+            current, cur_max = [i], lengths[i]
+        else:
+            current.append(i)
+            cur_max = new_max
+    if current:
+        batches.append(current)
+    return batches
 
 
 class ESM2Source:
@@ -95,7 +122,6 @@ class ESM2Source:
     # embedding source
 
     def embed(self, seqs: list[str]) -> dict[str, np.ndarray]:
-        """Sequences -> {original_seq: (L, D) float16}"""
         if not seqs:
             return {}
         self._ensure_loaded()
@@ -112,29 +138,36 @@ class ESM2Source:
                         f"alignment clause (L == len(seq), always) — chunk externally or "
                         f"pick a longer-context model."
                     )
-        self._ensure_loaded()
-        enc = self._tok(clean, return_tensors="pt", padding=True, add_special_tokens=True)
-        input_ids = enc["input_ids"].to(self._resolved_device)
-        attention = enc["attention_mask"].to(self._resolved_device)
-        with torch.inference_mode():
-            out = self._model(
-                input_ids=input_ids,
-                attention_mask=attention,
-                output_hidden_states=True,
-            )
-        hidden = out.hidden_states[self.layer if self.layer is not None else -1]
 
-        # strip BOS and EOS
+        batches = _plan_batches([len(s) for s in clean], MAX_TOKENS_PER_BATCH)
+        need_hidden = self.layer is not None
+
         result: dict[str, np.ndarray] = {}
-        for i, original in enumerate(seqs):
-            vec = (
-                hidden[i, 1 : 1 + len(clean[i]), :]
-                .to(torch.float32)
-                .cpu()
-                .numpy()
-                .astype(np.float16)
+        for idxs in batches:
+            enc = self._tok(
+                [clean[i] for i in idxs],
+                return_tensors="pt",
+                padding=True,
+                add_special_tokens=True,
             )
-            result[original] = vec  # keyed to non sanitized caller
+            input_ids = enc["input_ids"].to(self._resolved_device)
+            attention = enc["attention_mask"].to(self._resolved_device)
+            with torch.inference_mode():
+                out = self._model(
+                    input_ids=input_ids,
+                    attention_mask=attention,
+                    output_hidden_states=need_hidden,
+                )
+            hidden = out.hidden_states[self.layer] if need_hidden else out.last_hidden_state
+            for row, i in enumerate(idxs):
+                vec = (
+                    hidden[row, 1 : 1 + len(clean[i]), :]
+                    .to(torch.float32)
+                    .cpu()
+                    .numpy()
+                    .astype(np.float16)
+                )
+                result[seqs[i]] = vec  # keyed to the caller's original string
         return result
 
 

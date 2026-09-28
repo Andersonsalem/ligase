@@ -1,0 +1,4 @@
+_target_: ligase.embed.esm.ESM2Source
+model_name: facebook/esm2_t30_150M_UR50D
+layer: null
+device: null
