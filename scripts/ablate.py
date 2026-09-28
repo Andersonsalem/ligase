@@ -119,17 +119,30 @@ def main() -> None:
     parser.add_argument("--groups", default="none", help="groups JSON; 'none' = legacy split")
     parser.add_argument("--epochs", type=int, default=None, help="override profile epochs")
     parser.add_argument("--out", default="benchmarks/ablation.csv")
+    parser.add_argument(
+        "--only",
+        default="",
+        help="comma-separated row keys features_model_mode to run a subset, e.g. "
+        "'seq_mlp,both_mlp,struct_gearnet' (default: the full grid)",
+    )
     args = parser.parse_args()
 
     ids = load_structure_ids(args.ids)
+    rows_all = GRID + EXTRA
+    if args.only:
+        wanted = {w.strip() for w in args.only.split(",") if w.strip()}
+        unknown = wanted - {f"{f}_{m}_{mo}" for f, m, mo in rows_all}
+        if unknown:
+            raise SystemExit(f"unknown row keys: {sorted(unknown)}")
+        rows_all = [r for r in rows_all if f"{r[0]}_{r[1]}_{r[2]}" in wanted]
     print(
-        f"ablation grid: {len(GRID) + len(EXTRA)} rows over {len(ids)} ids "
+        f"ablation grid: {len(rows_all)} rows over {len(ids)} ids "
         f"(embed={args.embed}, profile={args.profile}, labels={args.labels})"
     )
     rows: list[dict] = []
     base_splits: dict | None = None
     with initialize_config_module(version_base=None, config_module="ligase.configs"):
-        for features, model, mode in GRID + EXTRA:
+        for features, model, mode in rows_all:
             print(f"\n=== row: features={features} model={model} mode={mode} ===")
             row = _run_row(features, model, mode, args, ids)
             as_sets = {k: frozenset(v) for k, v in row["_splits"].items()}
@@ -137,7 +150,7 @@ def main() -> None:
                 base_splits = as_sets
             elif as_sets != base_splits:
                 raise SystemExit(
-                    f"split drift at features={features} model={model} mode={mode}; "
+                    f"split drift at features={features} model={model} mode={mode} — "
                     "rows are not comparable; investigate (transient skip?) before "
                     "trusting the table"
                 )

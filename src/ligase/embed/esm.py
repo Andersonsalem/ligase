@@ -5,11 +5,13 @@ from typing import Any
 
 import numpy as np
 
+from ligase.embed.batching import MAX_TOKENS_PER_BATCH
+from ligase.embed.batching import plan_batches as _plan_batches
+
 logger = logging.getLogger(__name__)
 
 # 20 canonical AAs + ambiguity code in ESM2's vocab
 ALLOWED = set("ACDEFGHIKLMNPQRSTVWY") | set("XBZU")
-MAX_TOKENS_PER_BATCH = 4096
 
 
 def sanitize_sequence(seq: str) -> str:
@@ -21,32 +23,6 @@ def sanitize_sequence(seq: str) -> str:
         for c in bad:
             s = s.replace(c, "X")
     return s
-
-
-def _plan_batches(lengths: list[int], budget: int) -> list[list[int]]:
-    """Greedy token-budget batching over a stable length sort.
-
-    Returns batches of ORIGINAL indices. Property pinned by tests: for each
-    batch, max(length in batch) * len(batch) <= budget (so a lone sequence
-    longer than the budget still forms a batch of one — the budget is a
-    memory guard, never a correctness filter). Stable sort => deterministic
-    batching => bitwise repeat calls.
-    """
-    order = sorted(range(len(lengths)), key=lambda i: lengths[i])
-    batches: list[list[int]] = []
-    current: list[int] = []
-    cur_max = 0
-    for i in order:
-        new_max = max(cur_max, lengths[i])
-        if current and new_max * (len(current) + 1) > budget:
-            batches.append(current)
-            current, cur_max = [i], lengths[i]
-        else:
-            current.append(i)
-            cur_max = new_max
-    if current:
-        batches.append(current)
-    return batches
 
 
 class ESM2Source:
