@@ -230,15 +230,11 @@ def run_training(cfg: DictConfig, ids: list[str], run_dir: Path | None = None) -
     return test_m
 
 
-def evaluate_saved(cfg: DictConfig, ids: list[str], run_dir: Path) -> dict[str, float]:
-    ckpt = torch.load(Path(run_dir) / "best.pt", weights_only=False)  # we wrote it
+def _replay_saved(
+    ckpt: dict, cfg: DictConfig, ids: list[str]
+) -> tuple[int, list[str], list[Data], torch.nn.Module, str]:
     saved = OmegaConf.create(ckpt["config"])
-    try:
-        states = STATES[str(saved.task.labels)]
-    except KeyError:
-        raise SystemExit(
-            f"saved task.labels must be 'q3' or 'q8', got {saved.task.labels!r}"
-        ) from None
+    states = STATES[str(saved.task.labels)]
     examples, _ = build_examples(
         ids,
         GraphParams(**{k: saved.graph[k] for k in GraphParams.__dataclass_fields__}),
@@ -267,4 +263,31 @@ def evaluate_saved(cfg: DictConfig, ids: list[str], run_dir: Path) -> dict[str, 
     graft = ProjectionGraft(emb_dim, proj_width) if mode == "project" else None
     model = build_model(saved, width, saved.graph.rbf_count + 1, graft=graft)
     model.load_state_dict(ckpt["state_dict"])
-    return evaluate(model, test_data, states, _device(cfg))
+    return states, list(splits["test"]), test_data, model, _device(cfg)
+
+
+def evaluate_saved(cfg: DictConfig, ids: list[str], run_dir: Path) -> dict[str, float]:
+    ckpt = torch.load(Path(run_dir) / "best.pt", weights_only=False)  # we wrote it
+    states, _, test_data, model, device = _replay_saved(ckpt, cfg, ids)
+    return evaluate(model, test_data, states, device)
+
+
+@torch.no_grad()
+def evaluate_saved_per_structure(cfg: DictConfig, ids: list[str], run_dir: Path) -> list[dict]:
+    ckpt = torch.load(Path(run_dir) / "best.pt", weights_only=False)  # we wrote it
+    states, test_ids, test_data, model, device = _replay_saved(ckpt, cfg, ids)
+    out: list[dict] = []
+    for sid, data in zip(test_ids, test_data, strict=True):
+        batch = Batch.from_data_list([data]).to(device)
+        preds = model(batch).argmax(-1).cpu()
+        y = data.y.cpu()
+        n_correct = int((preds == y).sum())
+        out.append(
+            {
+                "structure_id": sid,
+                "n_residues": int(y.numel()),
+                "n_correct": n_correct,
+                "accuracy": n_correct / y.numel(),
+            }
+        )
+    return out

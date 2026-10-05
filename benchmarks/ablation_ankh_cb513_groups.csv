@@ -1,0 +1,4 @@
+features,model,mode,n_train,n_val,n_test,Q3_accuracy,f1_macro,f1_H,f1_E,f1_C,minutes,command
+seq,mlp,concat,348,75,75,0.8416219505448913,0.8406,0.8830153268689396,0.8209920920201293,0.8178428761651132,16.3,uv run ligase train task=secondary_structure features=seq model=mlp embed=ankh_base profile=cpu task.labels=q3 task.groups_file=benchmarks/cb513_groups.json
+struct,gearnet,concat,348,75,75,0.6878906898268518,0.6803,0.7225896817368298,0.6160291037371844,0.7023608768971332,13.3,uv run ligase train task=secondary_structure features=struct model=gearnet embed=ankh_base profile=cpu task.labels=q3 task.groups_file=benchmarks/cb513_groups.json
+both,mlp,concat,348,75,75,0.8406262101012336,0.8406,0.8836190028958284,0.8272625698324022,0.8108407846399113,6.8,uv run ligase train task=secondary_structure features=both model=mlp embed=ankh_base profile=cpu task.labels=q3 task.groups_file=benchmarks/cb513_groups.json

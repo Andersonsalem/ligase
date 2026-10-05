@@ -1,4 +1,3 @@
-name: ankh_base
 _target_: ligase.embed.ankh.AnkhSource
 model_name: ElnaggarLab/ankh-base
 layer: null   # last encoder layer; int for a mid-layer export

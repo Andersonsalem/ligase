@@ -9,6 +9,9 @@ __pycache__/
 htmlcov/
 dist/
 
+# jupyter notebooks
+notebooks/.ipynb_checkpoints
+
 # ligase data policy (Section 9): caches and outputs never enter git
 data/
 outputs/

@@ -25,6 +25,7 @@ from ligase.tasks.train import (
     build_model,
     encode_examples,
     evaluate_saved,
+    evaluate_saved_per_structure,
     run_training,
     train_model,
     x_width,
@@ -187,3 +188,16 @@ def test_evaluate_saved_replays_saved_split(toy_set, tmp_path: Path) -> None:
     eval_cfg.task.val_frac = 0.33
     again = evaluate_saved(eval_cfg, [ex.structure_id for ex in toy_set], run_dir)
     assert again == metrics  # same weights + same test set => bitwise-same metrics
+
+
+def test_per_structure_reconstructs_aggregate(toy_set, tmp_path: Path) -> None:
+    run_dir = tmp_path / "run"
+    metrics = run_training(_cfg(tmp_path), [ex.structure_id for ex in toy_set], run_dir=run_dir)
+    rows = evaluate_saved_per_structure(
+        _cfg(tmp_path / "e"), [ex.structure_id for ex in toy_set], run_dir
+    )
+    assert len(rows) == len(json.loads((run_dir / "splits.json").read_text())["test"])
+    total_res = sum(r["n_residues"] for r in rows)
+    total_ok = sum(r["n_correct"] for r in rows)
+    assert total_res > 0
+    assert abs((total_ok / total_res) - metrics["Q3_accuracy"]) < 1e-9  # weighted mean == aggregate

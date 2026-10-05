@@ -17,6 +17,10 @@ GRID = [(f, m, "concat") for f in ("seq", "struct", "both") for m in ("mlp", "gv
 EXTRA = [("both", "gearnet", "project")]
 
 
+def _row_key(features: str, model: str, mode: str) -> str:
+    return f"{features}_{model}" if mode == "concat" else f"{features}_{model}_{mode}"
+
+
 def _overrides(features: str, model: str, mode: str, args: argparse.Namespace) -> list[str]:
     ov = [
         f"features={features}",
@@ -60,7 +64,8 @@ def _run_row(
     cfg = compose(config_name="config", overrides=_overrides(features, model, mode, args))
     if args.groups != "none":
         cfg.task.groups_file = args.groups  # yaml key is optional
-    run_dir = Path("outputs/ablation") / f"{features}_{model}_{mode}"
+    split_tag = "groups" if args.groups != "none" else "legacy"
+    run_dir = Path("outputs/ablation") / f"{split_tag}_{features}_{model}_{mode}"
     t0 = time.perf_counter()
     run_training(cfg, ids, run_dir=run_dir)
     minutes = round((time.perf_counter() - t0) / 60, 1)
@@ -131,10 +136,10 @@ def main() -> None:
     rows_all = GRID + EXTRA
     if args.only:
         wanted = {w.strip() for w in args.only.split(",") if w.strip()}
-        unknown = wanted - {f"{f}_{m}_{mo}" for f, m, mo in rows_all}
+        unknown = wanted - {_row_key(f, m, mo) for f, m, mo in rows_all}
         if unknown:
             raise SystemExit(f"unknown row keys: {sorted(unknown)}")
-        rows_all = [r for r in rows_all if f"{r[0]}_{r[1]}_{r[2]}" in wanted]
+        rows_all = [r for r in rows_all if _row_key(*r) in wanted]
     print(
         f"ablation grid: {len(rows_all)} rows over {len(ids)} ids "
         f"(embed={args.embed}, profile={args.profile}, labels={args.labels})"
