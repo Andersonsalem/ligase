@@ -48,7 +48,7 @@ def build_graph(
 
 def build_graph_from_coords(
     coords: np.ndarray,
-    codes: np.ndarray,
+    codes: str,
     plddt: np.ndarray,
     params: GraphParams = DEFAULT_PARAMS,
 ) -> Data:

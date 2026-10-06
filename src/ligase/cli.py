@@ -93,11 +93,14 @@ def _graph_params(cfg: DictConfig) -> GraphParams:
     from ligase.graph.build import GraphParams
 
     fields = GraphParams.__dataclass_fields__
-    raw = OmegaConf.to_container(cfg.graph) or {}
+    container = OmegaConf.to_container(cfg.graph) or {}
+    if not isinstance(container, dict):
+        raise SystemExit(f"cfg.graph must be a mapping node, got {type(container).__name__}")
+    raw = {str(k): v for k, v in container.items()}
     unknown = sorted(set(raw) - set(fields) - {"name"})
     if unknown:
         raise SystemExit(
-            f"unknown graph options: {', '.join(unknown)} — "
+            f"unknown graph options: {', '.join(unknown)} | "
             "typo'd configs must fail loudly, not silently build the default"
         )
     return GraphParams(**{k: v for k, v in raw.items() if k in fields})

@@ -118,7 +118,9 @@ def train_model(
 def build_model(
     cfg: DictConfig, width: int, edge_dim: int, graft: torch.nn.Module | None = None
 ) -> torch.nn.Module:
-    raw = OmegaConf.to_container(cfg.model, resolve=True) or {}
+    raw = OmegaConf.to_container(cfg.model, resolve=True)
+    if not isinstance(raw, dict):
+        raise SystemExit(f"cfg.model must be a mapping node, got {type(raw).__name__}")
     raw.pop("name", None)
     target = str(raw.get("_target_", ""))
     out_dim = STATES[str(cfg.task.labels)]

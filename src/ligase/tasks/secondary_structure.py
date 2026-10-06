@@ -30,12 +30,17 @@ def residue_key(chain_name: str, res: gemmi.Residue) -> tuple[str, int, str]:
     """DSSP lookup key: (chain, author residue number, insertion code).
 
     Absent insertion codes normalize to ``" "`` --- the character DSSP prints
-    in the icode column when there is none.
+    in the icode column when there is none. Unnumbered residues (``num is None``
+    in recent gemmi) get a sentinel that never matches a DSSP row, so they
+    fall back to ``'-'`` downstream.
     """
     icode = res.seqid.icode
     if icode in ("\x00", ""):
         icode = " "
-    return (chain_name, res.seqid.num, icode)
+    num = res.seqid.num
+    if num is None:
+        num = -1
+    return (chain_name, num, icode)
 
 
 def map_q8_to_q3(labels: str | list[str]) -> str:

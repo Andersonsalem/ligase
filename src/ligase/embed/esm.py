@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
+import torch
 
 from ligase.embed.batching import MAX_TOKENS_PER_BATCH
 from ligase.embed.batching import plan_batches as _plan_batches
@@ -25,6 +27,15 @@ def sanitize_sequence(seq: str) -> str:
     return s
 
 
+@dataclass(frozen=True)
+class _Loaded:
+    """Everything embed () needs once the weights are on the device"""
+
+    model: Any
+    tok: Any
+    device: torch.device
+
+
 class ESM2Source:
     """A HuggingFace ESM-2 checkpoint satisfying the EmbeddingSource protocol.
 
@@ -41,12 +52,8 @@ class ESM2Source:
         self.model_name = model_name
         self.layer = layer
         self.device = device
-        self._dim: int | None = None
-        self._tok: Any | None = None
-        self._model: Any | None = None
         self._cfg: Any | None = None
-        self._resolved_device: Any | None = None
-        self._torch: Any | None = None
+        self._loaded: _Loaded | None = None
 
     # EmbeddingSource: id
     @property
@@ -67,11 +74,9 @@ class ESM2Source:
         return int(self.hf_config.hidden_size)
 
     # lazy loading
-
-    def _ensure_loaded(self) -> None:
-        if self._model is not None:
-            return
-        import torch
+    def _load(self) -> _Loaded:
+        if self._loaded is not None:
+            return self._loaded
         from transformers import AutoConfig, AutoModel, AutoTokenizer
 
         config = AutoConfig.from_pretrained(self.model_name)
@@ -88,30 +93,28 @@ class ESM2Source:
         )
         dtype = torch.bfloat16 if resolved.type == "cuda" else torch.float32
         logger.info("loading %s on %s (%s)", self.model_name, resolved, dtype)
-        self._tok = AutoTokenizer.from_pretrained(self.model_name)
-        self._model = (
-            AutoModel.from_pretrained(self.model_name).to(device=resolved, dtype=dtype).eval()
-        )
-        self._resolved_device = resolved
-        self._torch = torch
+        tok = AutoTokenizer.from_pretrained(self.model_name)
+        model = AutoModel.from_pretrained(self.model_name).to(device=resolved, dtype=dtype).eval()
+        loaded = _Loaded(model=model, tok=tok, device=resolved)
+        self._loaded = loaded
+        return loaded
 
     # embedding source
 
     def embed(self, seqs: list[str]) -> dict[str, np.ndarray]:
         if not seqs:
             return {}
-        self._ensure_loaded()
-        torch = self._torch
+        loaded = self._load()
 
         clean = [sanitize_sequence(s) for s in seqs]
-        max_pos = getattr(self._model.config, "max_position_embeddings", None)
+        max_pos = getattr(loaded.model.config, "max_position_embeddings", None)
         if max_pos is not None:
             for s in clean:
                 if len(s) + 2 > max_pos:  # +2 for BOS/EOS tokens
-                    raise ValueError(
+                    raise SequenceTooLong(
                         f"sequence of length {len(s)} exceeds {self.model_name} "
                         f"capacity ({max_pos - 2} residues). Truncating would violate the "
-                        f"alignment clause (L == len(seq), always) — chunk externally or "
+                        f"alignment clause (L == len(seq), always) --- chunk externally or "
                         f"pick a longer-context model."
                     )
 
@@ -120,16 +123,16 @@ class ESM2Source:
 
         result: dict[str, np.ndarray] = {}
         for idxs in batches:
-            enc = self._tok(
+            enc = loaded.tok(
                 [clean[i] for i in idxs],
                 return_tensors="pt",
                 padding=True,
                 add_special_tokens=True,
             )
-            input_ids = enc["input_ids"].to(self._resolved_device)
-            attention = enc["attention_mask"].to(self._resolved_device)
+            input_ids = enc["input_ids"].to(loaded.device)
+            attention = enc["attention_mask"].to(loaded.device)
             with torch.inference_mode():
-                out = self._model(
+                out = loaded.model(
                     input_ids=input_ids,
                     attention_mask=attention,
                     output_hidden_states=need_hidden,
